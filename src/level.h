@@ -78,6 +78,17 @@ struct OneWayPlatformSpawn {
 };
 
 
+struct IceSurfaceSpawn {
+    QRectF rect;
+    double friction = 0.08;
+};
+
+struct WaterZoneSpawn {
+    QRectF rect;
+    double buoyancy = 0.72;
+    double drag = 0.55;
+};
+
 struct FallingPlatformSpawn {
     QRectF rect;
     QString material = "stone";
@@ -121,6 +132,8 @@ public:
     const QVector<ConveyorSpawn> &conveyors() const;
     const QVector<OneWayPlatformSpawn> &oneWayPlatforms() const;
     const QVector<FallingPlatformSpawn> &fallingPlatforms() const;
+    const QVector<IceSurfaceSpawn> &iceSurfaces() const;
+    const QVector<WaterZoneSpawn> &waterZones() const;
     const QVector<KeySpawn> &keys() const;
 
     QPointF checkpoint() const;
@@ -150,6 +163,8 @@ private:
     QVector<ConveyorSpawn> conveyors_;
     QVector<OneWayPlatformSpawn> oneWayPlatforms_;
     QVector<FallingPlatformSpawn> fallingPlatforms_;
+    QVector<IceSurfaceSpawn> iceSurfaces_;
+    QVector<WaterZoneSpawn> waterZones_;
 
     QRectF goal_ {880, 470, 55, 100};
 };

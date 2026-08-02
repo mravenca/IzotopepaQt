@@ -31,6 +31,8 @@ add_executable(IzotopepaQtGameV3
     src/onewayplatform.h
     src/fallingplatform.cpp
     src/fallingplatform.h
+    src/environmentvolume.cpp
+    src/environmentvolume.h
     src/worldevent.cpp
     src/worldevent.h
     src/support.cpp

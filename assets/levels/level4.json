@@ -1,0 +1,178 @@
+{
+  "name": "4. The Weight of Things",
+  "world": {
+    "width": 3200,
+    "height": 640
+  },
+  "player": {
+    "x": 80,
+    "y": 450
+  },
+  "platforms": [
+    [
+      0,
+      570,
+      3200,
+      70
+    ],
+    [
+      420,
+      430,
+      170,
+      24
+    ],
+    [
+      930,
+      390,
+      170,
+      24
+    ],
+    [
+      1510,
+      430,
+      170,
+      24
+    ],
+    [
+      2140,
+      390,
+      180,
+      24
+    ],
+    [
+      2700,
+      430,
+      180,
+      24
+    ]
+  ],
+  "movingPlatforms": [],
+  "ladders": [],
+  "spikes": [],
+  "enemies": [
+    {
+      "kind": "walker",
+      "x": 1120,
+      "y": 500,
+      "left": 960,
+      "right": 1280
+    },
+    {
+      "kind": "shooter",
+      "x": 2440,
+      "y": 500,
+      "left": 2240,
+      "right": 2660
+    }
+  ],
+  "coins": [
+    [
+      480,
+      385
+    ],
+    [
+      980,
+      345
+    ],
+    [
+      1560,
+      385
+    ],
+    [
+      2190,
+      345
+    ],
+    [
+      2750,
+      385
+    ],
+    [
+      2980,
+      520
+    ]
+  ],
+  "pickups": [],
+  "keys": [],
+  "doors": [
+    {
+      "key": "gate-a",
+      "rect": [
+        880,
+        470,
+        55,
+        100
+      ]
+    },
+    {
+      "key": "gate-b",
+      "rect": [
+        2070,
+        470,
+        55,
+        100
+      ]
+    }
+  ],
+  "switches": [],
+  "crates": [],
+  "barrels": [],
+  "pushableBoxes": [
+    {
+      "x": 280,
+      "y": 522,
+      "width": 48,
+      "height": 48
+    },
+    {
+      "x": 1390,
+      "y": 522,
+      "width": 48,
+      "height": 48
+    }
+  ],
+  "jumpPads": [
+    {
+      "x": 1240,
+      "y": 550,
+      "width": 72,
+      "height": 20,
+      "strength": 820,
+      "horizontal": 90,
+      "delay": 0.08,
+      "cooldown": 0.25
+    }
+  ],
+  "pressurePlates": [
+    {
+      "x": 760,
+      "y": 552,
+      "width": 84,
+      "height": 18,
+      "target": "gate-a",
+      "requiredWeight": 1
+    },
+    {
+      "x": 1940,
+      "y": 552,
+      "width": 84,
+      "height": 18,
+      "target": "gate-b",
+      "requiredWeight": 1
+    }
+  ],
+  "conveyors": [],
+  "oneWayPlatforms": [],
+  "fallingPlatforms": [],
+  "iceSurfaces": [],
+  "waterZones": [],
+  "checkpoint": [
+    1640,
+    480
+  ],
+  "goal": [
+    3070,
+    470,
+    55,
+    100
+  ]
+}

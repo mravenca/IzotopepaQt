@@ -1,0 +1,227 @@
+{
+  "name": "5. Assembly Line",
+  "world": {
+    "width": 3500,
+    "height": 640
+  },
+  "player": {
+    "x": 80,
+    "y": 450
+  },
+  "platforms": [
+    [
+      0,
+      570,
+      3500,
+      70
+    ],
+    [
+      500,
+      420,
+      180,
+      24
+    ],
+    [
+      1150,
+      360,
+      180,
+      24
+    ],
+    [
+      1810,
+      420,
+      180,
+      24
+    ],
+    [
+      2470,
+      360,
+      180,
+      24
+    ],
+    [
+      3050,
+      420,
+      170,
+      24
+    ]
+  ],
+  "movingPlatforms": [],
+  "ladders": [],
+  "spikes": [
+    [
+      1880,
+      550,
+      130,
+      20
+    ]
+  ],
+  "enemies": [
+    {
+      "kind": "walker",
+      "x": 650,
+      "y": 500,
+      "left": 620,
+      "right": 900
+    },
+    {
+      "kind": "shooter",
+      "x": 1850,
+      "y": 350,
+      "left": 1780,
+      "right": 2010
+    },
+    {
+      "kind": "jumper",
+      "x": 3100,
+      "y": 350,
+      "left": 3010,
+      "right": 3270
+    }
+  ],
+  "coins": [
+    [
+      550,
+      375
+    ],
+    [
+      1200,
+      315
+    ],
+    [
+      1860,
+      375
+    ],
+    [
+      2520,
+      315
+    ],
+    [
+      3100,
+      375
+    ],
+    [
+      3350,
+      520
+    ]
+  ],
+  "pickups": [],
+  "keys": [],
+  "doors": [
+    {
+      "key": "line-a",
+      "rect": [
+        1210,
+        470,
+        55,
+        100
+      ]
+    },
+    {
+      "key": "line-b",
+      "rect": [
+        2530,
+        470,
+        55,
+        100
+      ]
+    }
+  ],
+  "switches": [],
+  "crates": [],
+  "barrels": [],
+  "pushableBoxes": [
+    {
+      "x": 340,
+      "y": 522,
+      "width": 48,
+      "height": 48
+    },
+    {
+      "x": 1480,
+      "y": 522,
+      "width": 48,
+      "height": 48
+    }
+  ],
+  "jumpPads": [],
+  "pressurePlates": [
+    {
+      "x": 1050,
+      "y": 552,
+      "width": 80,
+      "height": 18,
+      "target": "line-a",
+      "requiredWeight": 1
+    },
+    {
+      "x": 2360,
+      "y": 552,
+      "width": 80,
+      "height": 18,
+      "target": "line-b",
+      "requiredWeight": 1
+    }
+  ],
+  "conveyors": [
+    {
+      "rect": [
+        260,
+        552,
+        360,
+        18
+      ],
+      "speed": 120
+    },
+    {
+      "rect": [
+        760,
+        552,
+        390,
+        18
+      ],
+      "speed": -100
+    },
+    {
+      "rect": [
+        1400,
+        552,
+        410,
+        18
+      ],
+      "speed": 145
+    },
+    {
+      "rect": [
+        2070,
+        552,
+        400,
+        18
+      ],
+      "speed": -130
+    },
+    {
+      "rect": [
+        2710,
+        552,
+        360,
+        18
+      ],
+      "speed": 160
+    }
+  ],
+  "oneWayPlatforms": [],
+  "fallingPlatforms": [],
+  "iceSurfaces": [],
+  "waterZones": [],
+  "checkpoint": [
+    1780,
+    480
+  ],
+  "goal": [
+    3380,
+    470,
+    55,
+    100
+  ]
+}

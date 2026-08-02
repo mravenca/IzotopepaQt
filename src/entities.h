@@ -38,6 +38,8 @@ public:
     void setDown(bool);
     void jump();
     void stopJump();
+    void setEnvironment(bool inWater, double waterDrag, double buoyancy, double surfaceFriction);
+    bool inWater() const;
     void launch(const QVector2D &impulse);
     void dropThroughOneWay();
     QVector2D velocity() const;
@@ -77,6 +79,8 @@ private:
     bool onGround_ = false;
     bool onLadder_ = false;
     bool climbing_ = false;
+    bool jumpHeld_ = false;
+    bool inWater_ = false;
 
     int direction_ = 1;
     int health_ = 5;
@@ -89,6 +93,9 @@ private:
     double muzzleFlash_ = 0;
     double coyoteTime_ = 0;
     double jumpBuffer_ = 0;
+    double waterDrag_ = 0.55;
+    double buoyancy_ = 0.72;
+    double surfaceFriction_ = 1.0;
 
     QSet<QString> keys_;
 };
@@ -102,7 +109,10 @@ public:
         const QVector<QRectF> &platforms,
         const QVector<QRectF> &oneWayPlatforms,
         QPointF player,
-        QVector<Projectile> &shots);
+        QVector<Projectile> &shots,
+        bool inWater = false,
+        double waterDrag = 0.55,
+        double buoyancy = 0.72);
 
     void damage(int amount, double sourceX);
     void separateFrom(const QRectF &other);

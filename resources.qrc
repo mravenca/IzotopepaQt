@@ -7,4 +7,11 @@
  <file alias="levels/level1.json">assets/levels/level1.json</file>
  <file alias="levels/level2.json">assets/levels/level2.json</file>
  <file alias="levels/level3.json">assets/levels/level3.json</file>
+ <file alias="levels/level4.json">assets/levels/level4.json</file>
+ <file alias="levels/level5.json">assets/levels/level5.json</file>
+ <file alias="levels/level6.json">assets/levels/level6.json</file>
+ <file alias="levels/level7.json">assets/levels/level7.json</file>
+ <file alias="levels/level8.json">assets/levels/level8.json</file>
+ <file alias="levels/level9.json">assets/levels/level9.json</file>
+ <file alias="levels/level10.json">assets/levels/level10.json</file>
 </qresource></RCC>
