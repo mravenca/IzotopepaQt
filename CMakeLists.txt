@@ -14,3 +14,25 @@ target_link_libraries(IzotopepaQtGameV3 PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 if(WIN32)
  set_target_properties(IzotopepaQtGameV3 PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
+
+add_executable(IzotopepaLevelEditor
+    editor/main.cpp
+    editor/editormainwindow.cpp
+    editor/editormainwindow.h
+    editor/levelcanvas.cpp
+    editor/levelcanvas.h
+    editor/leveldocument.cpp
+    editor/leveldocument.h
+)
+
+target_link_libraries(
+    IzotopepaLevelEditor
+    PRIVATE Qt${QT_VERSION_MAJOR}::Widgets
+)
+
+if(WIN32)
+    set_target_properties(
+        IzotopepaLevelEditor
+        PROPERTIES WIN32_EXECUTABLE TRUE
+    )
+endif()
