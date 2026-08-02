@@ -29,6 +29,8 @@ add_executable(IzotopepaQtGameV3
     src/conveyor.h
     src/onewayplatform.cpp
     src/onewayplatform.h
+    src/fallingplatform.cpp
+    src/fallingplatform.h
     src/worldevent.cpp
     src/worldevent.h
     src/support.cpp

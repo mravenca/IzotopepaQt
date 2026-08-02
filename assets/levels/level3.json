@@ -468,5 +468,30 @@
       190,
       16
     ]
+  ],
+  "fallingPlatforms": [
+    {
+      "rect": [
+        700,
+        530,
+        100,
+        20
+      ],
+      "material": "stone",
+      "confirmationTime": 0.15,
+      "fallDelay": 8.0,
+      "respawnDelay": 4.0
+    },
+    {
+      "rect": [
+        2800,
+        530,
+        100,
+        20
+      ],
+      "material": "metal",
+      "confirmationTime": 0.15,
+      "respawnDelay": 4.0
+    }
   ]
 }

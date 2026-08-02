@@ -468,5 +468,29 @@
       170,
       16
     ]
+  ],
+  "fallingPlatforms": [
+    {
+      "rect": [
+        620,
+        525,
+        100,
+        20
+      ],
+      "material": "metal",
+      "confirmationTime": 0.15,
+      "respawnDelay": 4.0
+    },
+    {
+      "rect": [
+        1770,
+        525,
+        100,
+        20
+      ],
+      "material": "ice",
+      "confirmationTime": 0.15,
+      "respawnDelay": 4.0
+    }
   ]
 }

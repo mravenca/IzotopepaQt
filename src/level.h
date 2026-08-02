@@ -77,6 +77,15 @@ struct OneWayPlatformSpawn {
     QRectF rect;
 };
 
+
+struct FallingPlatformSpawn {
+    QRectF rect;
+    QString material = "stone";
+    double confirmationTime = 0.15;
+    double fallDelay = -1.0;
+    double respawnDelay = 4.0;
+};
+
 struct JumpPadSpawn {
     QPointF position;
     double width = 72;
@@ -111,6 +120,7 @@ public:
     const QVector<PressurePlateSpawn> &pressurePlates() const;
     const QVector<ConveyorSpawn> &conveyors() const;
     const QVector<OneWayPlatformSpawn> &oneWayPlatforms() const;
+    const QVector<FallingPlatformSpawn> &fallingPlatforms() const;
     const QVector<KeySpawn> &keys() const;
 
     QPointF checkpoint() const;
@@ -139,6 +149,7 @@ private:
     QVector<PressurePlateSpawn> pressurePlates_;
     QVector<ConveyorSpawn> conveyors_;
     QVector<OneWayPlatformSpawn> oneWayPlatforms_;
+    QVector<FallingPlatformSpawn> fallingPlatforms_;
 
     QRectF goal_ {880, 470, 55, 100};
 };
