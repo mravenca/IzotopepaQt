@@ -67,6 +67,12 @@ struct PressurePlateSpawn {
     double requiredWeight = 1.0;
 };
 
+
+struct ConveyorSpawn {
+    QRectF rect;
+    double speed = 120.0;
+};
+
 struct JumpPadSpawn {
     QPointF position;
     double width = 72;
@@ -99,6 +105,7 @@ public:
     const QVector<PushBoxSpawn> &pushBoxes() const;
     const QVector<JumpPadSpawn> &jumpPads() const;
     const QVector<PressurePlateSpawn> &pressurePlates() const;
+    const QVector<ConveyorSpawn> &conveyors() const;
     const QVector<KeySpawn> &keys() const;
 
     QPointF checkpoint() const;
@@ -125,6 +132,7 @@ private:
     QVector<PushBoxSpawn> pushBoxes_;
     QVector<JumpPadSpawn> jumpPads_;
     QVector<PressurePlateSpawn> pressurePlates_;
+    QVector<ConveyorSpawn> conveyors_;
 
     QRectF goal_ {880, 470, 55, 100};
 };

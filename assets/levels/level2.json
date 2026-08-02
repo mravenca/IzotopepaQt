@@ -432,5 +432,21 @@
       "target": "silver",
       "requiredWeight": 1
     }
+  ],
+  "conveyors": [
+    {
+      "x": 730,
+      "y": 552,
+      "width": 360,
+      "height": 18,
+      "speed": 145
+    },
+    {
+      "x": 2430,
+      "y": 552,
+      "width": 400,
+      "height": 18,
+      "speed": -150
+    }
   ]
 }

@@ -102,6 +102,7 @@ bool Level::load(const QString &requestedPath)
     pushBoxes_.clear();
     jumpPads_.clear();
     pressurePlates_.clear();
+    conveyors_.clear();
     checkpoint_ = QPointF(-1, -1);
 
     const QJsonObject root = document.object();
@@ -243,6 +244,18 @@ bool Level::load(const QString &requestedPath)
         };
     }
 
+    for (const QJsonValue &value : root.value("conveyors").toArray()) {
+        const QJsonObject object = value.toObject();
+        conveyors_ << ConveyorSpawn {
+            QRectF(
+                object.value("x").toDouble(),
+                object.value("y").toDouble(),
+                std::max(32.0, object.value("width").toDouble(128.0)),
+                std::max(12.0, object.value("height").toDouble(20.0))),
+            std::clamp(object.value("speed").toDouble(120.0), -500.0, 500.0)
+        };
+    }
+
     for (const QJsonValue &value : root.value("jumpPads").toArray()) {
         const QJsonObject object = value.toObject();
         jumpPads_ << JumpPadSpawn {
@@ -292,5 +305,6 @@ const QVector<BarrelSpawn> &Level::barrels() const { return barrels_; }
 const QVector<PushBoxSpawn> &Level::pushBoxes() const { return pushBoxes_; }
 const QVector<JumpPadSpawn> &Level::jumpPads() const { return jumpPads_; }
 const QVector<PressurePlateSpawn> &Level::pressurePlates() const { return pressurePlates_; }
+const QVector<ConveyorSpawn> &Level::conveyors() const { return conveyors_; }
 QPointF Level::checkpoint() const { return checkpoint_; }
 QRectF Level::goal() const { return goal_; }

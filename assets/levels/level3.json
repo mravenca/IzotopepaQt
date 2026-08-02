@@ -432,5 +432,21 @@
       "target": "gold",
       "requiredWeight": 1
     }
+  ],
+  "conveyors": [
+    {
+      "x": 810,
+      "y": 552,
+      "width": 460,
+      "height": 18,
+      "speed": 165
+    },
+    {
+      "x": 2920,
+      "y": 552,
+      "width": 500,
+      "height": 18,
+      "speed": -175
+    }
   ]
 }

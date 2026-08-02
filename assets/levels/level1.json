@@ -333,5 +333,21 @@
       "target": "bronze",
       "requiredWeight": 1
     }
+  ],
+  "conveyors": [
+    {
+      "x": 880,
+      "y": 552,
+      "width": 240,
+      "height": 18,
+      "speed": 110
+    },
+    {
+      "x": 2320,
+      "y": 552,
+      "width": 220,
+      "height": 18,
+      "speed": -125
+    }
   ]
 }

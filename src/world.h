@@ -4,6 +4,7 @@
 #include "level.h"
 #include "jumppad.h"
 #include "pressureplate.h"
+#include "conveyor.h"
 #include "worldevent.h"
 
 #include <QPointF>
@@ -121,6 +122,8 @@ private:
     void updatePushBoxes(double dt);
     void updateJumpPads(double dt);
     void updatePressurePlates(double dt);
+    void updateConveyors(double dt);
+    double conveyorSpeedBelow(const QRectF &rect) const;
     void processWorldEvents();
     void refreshDoorStates();
     void launchFromPad(int padIndex);
@@ -146,6 +149,7 @@ private:
     QVector<PushBox> pushBoxes_;
     QVector<JumpPad> jumpPads_;
     QVector<PressurePlate> pressurePlates_;
+    QVector<Conveyor> conveyors_;
     WorldEventQueue worldEvents_;
     QVector<JumpPadActivation> jumpPadActivations_;
     QVector<Projectile> projectiles_;

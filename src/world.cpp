@@ -216,6 +216,11 @@ bool World::loadLevel(int index)
         jumpPadActivations_ << JumpPadActivation {};
     }
 
+    conveyors_.clear();
+    for (const auto &spawn : level_.conveyors()) {
+        conveyors_ << Conveyor(spawn.rect, spawn.speed);
+    }
+
     pressurePlates_.clear();
     worldEvents_.clear();
     for (const auto &spawn : level_.pressurePlates()) {
@@ -377,6 +382,7 @@ void World::update(double dt)
     updatePushBoxes(dt);
     rebuildCollision();
     player_.update(dt, collision_, level_.ladders(), level_.worldSize().width());
+    updateConveyors(dt);
     updateJumpPads(dt);
     updatePressurePlates(dt);
     processWorldEvents();
@@ -777,6 +783,50 @@ void World::refreshDoorStates()
     }
 }
 
+double World::conveyorSpeedBelow(const QRectF &rect) const
+{
+    const QRectF feet(
+        rect.left() + 5.0,
+        rect.bottom() - 4.0,
+        std::max(1.0, rect.width() - 10.0),
+        9.0);
+
+    double result = 0.0;
+
+    for (const Conveyor &conveyor : conveyors_) {
+        if (feet.intersects(conveyor.surfaceZone())
+            && rect.bottom() <= conveyor.rect().top() + 7.0) {
+            result += conveyor.speed();
+        }
+    }
+
+    return std::clamp(result, -500.0, 500.0);
+}
+
+void World::updateConveyors(double dt)
+{
+    for (Conveyor &conveyor : conveyors_) {
+        conveyor.update(dt);
+    }
+
+    const double playerSpeed = conveyorSpeedBelow(player_.rect());
+
+    if (!qFuzzyIsNull(playerSpeed)) {
+        QVector<QRectF> blockers = collision_;
+
+        // The player may be touching a push box that is also being carried.
+        // Excluding boxes prevents artificial crush damage between two
+        // objects travelling at the same belt speed.
+        for (const PushBox &box : pushBoxes_) {
+            if (box.alive) {
+                blockers.removeAll(box.rect);
+            }
+        }
+
+        player_.carryBy(QPointF(playerSpeed * dt, 0.0), blockers);
+    }
+}
+
 void World::updateJumpPads(double dt)
 {
     for (int index = 0; index < jumpPads_.size(); ++index) {
@@ -982,10 +1032,20 @@ void World::updatePushBoxes(double dt)
             pushDirection = -1;
         }
 
-        box.velocity.setX(
-            pushDirection == 0
-                ? box.velocity.x() * 0.72f
-                : static_cast<float>(pushDirection * kPushSpeed));
+        const double beltSpeed = conveyorSpeedBelow(box.rect);
+
+        if (pushDirection != 0) {
+            box.velocity.setX(static_cast<float>(
+                pushDirection * kPushSpeed + beltSpeed));
+        } else if (!qFuzzyIsNull(beltSpeed)) {
+            const float target = static_cast<float>(beltSpeed);
+            box.velocity.setX(
+                box.velocity.x()
+                + (target - box.velocity.x())
+                    * static_cast<float>(std::min(1.0, dt * 12.0)));
+        } else {
+            box.velocity.setX(box.velocity.x() * 0.72f);
+        }
 
         if (qAbs(box.velocity.x()) < 1.0f) {
             box.velocity.setX(0.0f);
@@ -1266,6 +1326,10 @@ void World::draw(QPainter &painter, double cameraX) const
 
     for (const auto &platform : moving_) {
         drawMovingPlatform(painter, platform.rect.translated(-cameraX, 0));
+    }
+
+    for (const Conveyor &conveyor : conveyors_) {
+        conveyor.draw(painter, cameraX);
     }
 
     for (const JumpPad &pad : jumpPads_) {

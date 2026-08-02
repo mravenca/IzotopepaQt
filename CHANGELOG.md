@@ -1,3 +1,10 @@
+## M3 — Assembly Line
+
+### Added
+- Animated conveyor belts with configurable direction and speed.
+- Conveyor transport for the player and pushable boxes.
+- Conveyor documentation and regression checklist.
+
 # Changelog
 
 ## Unreleased
