@@ -23,6 +23,7 @@ void Player::reset(QPointF position, bool full)
     onGround_ = onLadder_ = climbing_ = false;
     direction_ = 1;
     shootCd_ = invuln_ = anim_ = 0;
+    muzzleFlash_ = 0;
     coyoteTime_ = jumpBuffer_ = 0;
 
     if (full) {
@@ -143,6 +144,7 @@ void Player::update(
     }
 
     shootCd_ = std::max(0.0, shootCd_ - dt);
+    muzzleFlash_ = std::max(0.0, muzzleFlash_ - dt);
     invuln_ = std::max(0.0, invuln_ - dt);
     anim_ += dt;
 }
@@ -215,6 +217,7 @@ Projectile Player::shoot()
     projectile.velocity = QVector2D(direction_ * 680, 0);
     --ammo_;
     shootCd_ = .22;
+    muzzleFlash_ = 0.10;
     return projectile;
 }
 
@@ -253,9 +256,18 @@ void Player::draw(QPainter &painter, double cameraX) const
         return;
     }
 
-    const int row = direction_ > 0 ? 1 : 0;
-    const int column =
-        (climbing_ || std::abs(vel_.x()) > 1.0f) ? 1 : 0;
+    const bool moving =
+        climbing_ || std::abs(vel_.x()) > 1.0f;
+    const bool firing = muzzleFlash_ > 0.0;
+
+    const int row = firing
+        ? (direction_ > 0 ? 3 : 2)
+        : (direction_ > 0 ? 1 : 0);
+
+    const int column = firing
+        ? (moving ? 3 : 2)
+        : (moving ? 1 : 0);
+
     const QRect source = sheet_->frame(row, column);
     const QRectF target(
         rect_.center().x() - source.width() / 2.0 - cameraX,
@@ -264,6 +276,22 @@ void Player::draw(QPainter &painter, double cameraX) const
         source.height());
 
     painter.drawImage(target, sheet_->image(), source);
+
+    if (firing) {
+        const QPointF flashCenter(
+            direction_ > 0
+                ? rect_.right() + 13.0 - cameraX
+                : rect_.left() - 13.0 - cameraX,
+            rect_.top() + 35.0);
+
+        painter.save();
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor(255, 245, 120, 220));
+        painter.drawEllipse(flashCenter, 10.0, 6.0);
+        painter.setBrush(QColor(255, 150, 20, 210));
+        painter.drawEllipse(flashCenter, 5.0, 3.0);
+        painter.restore();
+    }
 }
 
 Enemy::Enemy(

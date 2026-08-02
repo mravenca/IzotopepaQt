@@ -77,6 +77,7 @@ private:
     double shootCd_ = 0;
     double invuln_ = 0;
     double anim_ = 0;
+    double muzzleFlash_ = 0;
     double coyoteTime_ = 0;
     double jumpBuffer_ = 0;
 

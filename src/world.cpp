@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QPainter>
+#include <QLinearGradient>
 #include <QRandomGenerator>
 #include <QSettings>
 #include <QtMath>
@@ -200,6 +201,10 @@ void World::update(double dt)
     if (completed_ || gameOver_) {
         return;
     }
+    shakeTime_ = std::max(0.0, shakeTime_ - dt);
+    if (shakeTime_ <= 0.0) {
+        shakeStrength_ = 0.0;
+    }
 
     // Move platforms before ordinary player physics. A player standing on
     // a platform's previous top surface receives the same displacement.
@@ -361,6 +366,8 @@ void World::update(double dt)
         if (projectile.hostile) {
             if (projectile.rect.intersects(player_.rect())) {
                 player_.damage(projectile.rect.center().x());
+                shakeTime_ = std::max(shakeTime_, 0.18);
+                shakeStrength_ = std::max(shakeStrength_, 5.0);
                 projectile.alive = false;
                 explode(projectile.rect.center(), Qt::red);
             }
@@ -368,11 +375,18 @@ void World::update(double dt)
             for (auto &enemy : enemies_) {
                 if (enemy.alive() && projectile.rect.intersects(enemy.rect())) {
                     enemy.damage(1, projectile.rect.center().x());
+                    shakeTime_ = std::max(shakeTime_, 0.10);
+                    shakeStrength_ = std::max(shakeStrength_, 3.0);
                     projectile.alive = false;
                     explode(projectile.rect.center(), Qt::yellow);
                     if (!enemy.alive()) {
                         player_.addScore(enemy.reward());
                         explode(enemy.rect().center(), Qt::red);
+                        explode(
+                            enemy.rect().center() + QPointF(10, -12),
+                            QColor(255, 170, 40));
+                        shakeTime_ = std::max(shakeTime_, 0.30);
+                        shakeStrength_ = std::max(shakeStrength_, 8.0);
                         beep();
                     }
                     break;
@@ -448,6 +462,8 @@ void World::shoot()
 {
     if (!completed_ && !gameOver_ && player_.canShoot()) {
         projectiles_ << player_.shoot();
+        shakeTime_ = std::max(shakeTime_, 0.08);
+        shakeStrength_ = std::max(shakeStrength_, 2.0);
         beep();
     }
 }
@@ -501,6 +517,12 @@ void World::beep() const
 void World::draw(QPainter &painter, double cameraX) const
 {
     painter.save();
+
+    const QPointF shakeOffset(
+        qSin(shakeTime_ * 91.0) * shakeStrength_,
+        qCos(shakeTime_ * 73.0) * shakeStrength_ * 0.65);
+
+    painter.translate(shakeOffset);
 
     for (const auto &platform : level_.platforms()) {
         drawStaticPlatform(painter, platform.translated(-cameraX, 0));
@@ -591,8 +613,47 @@ void World::draw(QPainter &painter, double cameraX) const
     }
 
     for (const auto &projectile : projectiles_) {
-        painter.fillRect(projectile.rect.translated(-cameraX, 0),
-                         projectile.hostile ? Qt::red : Qt::yellow);
+        const QRectF projectileRect =
+            projectile.rect.translated(-cameraX, 0);
+
+        const double trailLength =
+            std::clamp(
+                std::abs(projectile.velocity.x()) * 0.035,
+                12.0,
+                28.0);
+
+        QRectF trail = projectileRect;
+
+        if (projectile.velocity.x() > 0.0f) {
+            trail.setLeft(trail.left() - trailLength);
+        } else {
+            trail.setRight(trail.right() + trailLength);
+        }
+
+        QLinearGradient gradient(
+            projectile.velocity.x() > 0.0f
+                ? trail.topLeft()
+                : trail.topRight(),
+            projectile.velocity.x() > 0.0f
+                ? trail.topRight()
+                : trail.topLeft());
+
+        const QColor core =
+            projectile.hostile
+                ? QColor(255, 70, 40)
+                : QColor(255, 235, 80);
+
+        gradient.setColorAt(
+            0.0,
+            QColor(
+                core.red(),
+                core.green(),
+                core.blue(),
+                0));
+        gradient.setColorAt(1.0, core);
+
+        painter.fillRect(trail, gradient);
+        painter.fillRect(projectileRect, core);
     }
 
     for (const auto &particle : particles_) {
