@@ -23,6 +23,7 @@ void Player::reset(QPointF position, bool full)
     onGround_ = onLadder_ = climbing_ = false;
     direction_ = 1;
     shootCd_ = invuln_ = anim_ = 0;
+    coyoteTime_ = jumpBuffer_ = 0;
 
     if (full) {
         health_ = 5;
@@ -38,6 +39,9 @@ void Player::update(
     const QVector<QRectF> &ladders,
     double worldWidth)
 {
+    jumpBuffer_ = std::max(0.0, jumpBuffer_ - dt);
+    coyoteTime_ = std::max(0.0, coyoteTime_ - dt);
+
     // The enlarged probe allows the player to grab a ladder while standing
     // immediately above or below it.
     const QRectF ladderProbe = rect_.adjusted(8.0, -12.0, -8.0, 12.0);
@@ -109,8 +113,26 @@ void Player::update(
             1000.0));
     }
 
+    const bool wasGrounded = onGround_;
     onGround_ =
         moveAndCollide(rect_, vel_, dt, collisionPlatforms).onGround;
+
+    if (onGround_) {
+        coyoteTime_ = 0.10;
+    } else if (wasGrounded && vel_.y() >= 0.0f) {
+        coyoteTime_ = std::max(coyoteTime_, 0.10);
+    }
+
+    const bool canBufferedJump =
+        onGround_ || coyoteTime_ > 0.0 || onLadder_ || climbing_;
+
+    if (jumpBuffer_ > 0.0 && canBufferedJump) {
+        climbing_ = false;
+        vel_.setY(-720.0f);
+        onGround_ = false;
+        coyoteTime_ = 0.0;
+        jumpBuffer_ = 0.0;
+    }
 
     if (rect_.left() < 0.0) {
         rect_.moveLeft(0.0);
@@ -132,11 +154,9 @@ void Player::setDown(bool value) { down_ = value; }
 
 void Player::jump()
 {
-    if (onGround_ || onLadder_ || climbing_) {
-        climbing_ = false;
-        vel_.setY(-720.0f);
-        onGround_ = false;
-    }
+    // Store the input briefly so a jump pressed just before landing is
+    // consumed on the first legal frame.
+    jumpBuffer_ = 0.12;
 }
 
 bool Player::carryBy(
