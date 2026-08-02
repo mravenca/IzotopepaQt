@@ -201,23 +201,69 @@ void World::update(double dt)
         return;
     }
 
-    for (auto &platform : moving_) {
-        const QPointF old = platform.rect.topLeft();
-        platform.rect.translate(platform.speedX * platform.dir * dt,
-                                platform.speedY * platform.dir * dt);
+    // Move platforms before ordinary player physics. A player standing on
+    // a platform's previous top surface receives the same displacement.
+    for (int index = 0; index < moving_.size(); ++index) {
+        MovingPlatform &platform = moving_[index];
 
-        const bool outsideHorizontal = platform.speedX != 0
-            && (platform.rect.left() < platform.minX || platform.rect.left() > platform.maxX);
-        const bool outsideVertical = platform.speedY != 0
-            && (platform.rect.top() < 250 || platform.rect.top() > 520);
+        const QRectF oldRect = platform.rect;
+        const QPointF oldPosition = oldRect.topLeft();
+
+        const QRectF playerFeet(
+            player_.rect().left() + 5.0,
+            player_.rect().bottom() - 4.0,
+            player_.rect().width() - 10.0,
+            8.0);
+
+        const bool riding =
+            playerFeet.intersects(oldRect)
+            && player_.rect().bottom() <= oldRect.top() + 5.0;
+
+        platform.rect.translate(
+            platform.speedX * platform.dir * dt,
+            platform.speedY * platform.dir * dt);
+
+        const bool outsideHorizontal =
+            platform.speedX != 0
+            && (platform.rect.left() < platform.minX
+                || platform.rect.left() > platform.maxX);
+
+        const bool outsideVertical =
+            platform.speedY != 0
+            && (platform.rect.top() < 250
+                || platform.rect.top() > 520);
 
         if (outsideHorizontal || outsideVertical) {
             platform.dir *= -1;
-            platform.rect.moveTopLeft(old);
+            platform.rect.moveTopLeft(oldPosition);
         }
-        platform.delta = platform.rect.topLeft() - old;
-    }
 
+        platform.delta =
+            platform.rect.topLeft() - oldPosition;
+
+        if (riding && !platform.delta.isNull()) {
+            QVector<QRectF> blockers = level_.platforms();
+
+            for (const Door &door : doors_) {
+                if (!door.open) {
+                    blockers << door.rect;
+                }
+            }
+
+            for (int other = 0; other < moving_.size(); ++other) {
+                if (other != index) {
+                    blockers << moving_[other].rect;
+                }
+            }
+
+            if (!player_.carryBy(platform.delta, blockers)) {
+                player_.damage(platform.rect.center().x());
+                platform.dir *= -1;
+                platform.rect = oldRect;
+                platform.delta = {};
+            }
+        }
+    }
     rebuildCollision();
     player_.update(dt, collision_, level_.ladders(), level_.worldSize().width());
     for (auto &enemy : enemies_) {

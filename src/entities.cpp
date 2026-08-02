@@ -139,6 +139,37 @@ void Player::jump()
     }
 }
 
+bool Player::carryBy(
+    const QPointF &delta,
+    const QVector<QRectF> &blockers)
+{
+    if (qFuzzyIsNull(delta.x()) && qFuzzyIsNull(delta.y())) {
+        return true;
+    }
+
+    QRectF candidate = rect_.translated(delta.x(), 0.0);
+    for (const QRectF &blocker : blockers) {
+        if (candidate.intersects(blocker)) {
+            return false;
+        }
+    }
+    rect_ = candidate;
+
+    candidate = rect_.translated(0.0, delta.y());
+    for (const QRectF &blocker : blockers) {
+        if (candidate.intersects(blocker)) {
+            return false;
+        }
+    }
+    rect_ = candidate;
+
+    if (delta.y() < 0.0 && vel_.y() > 0.0f) {
+        vel_.setY(0.0f);
+    }
+
+    return true;
+}
+
 bool Player::canShoot() const
 {
     return shootCd_ <= 0 && ammo_ > 0;

@@ -32,6 +32,10 @@ public:
     void setDown(bool);
     void jump();
 
+    bool carryBy(
+        const QPointF &delta,
+        const QVector<QRectF> &blockers);
+
     bool canShoot() const;
     Projectile shoot();
 
