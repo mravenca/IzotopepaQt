@@ -8,6 +8,13 @@ class SpriteSheet { public: SpriteSheet()=default; SpriteSheet(QImage,int,int); 
 QImage loadTransparentImage(const QString&,int threshold=250);
 struct MoveResult { bool onGround=false, hitWall=false, hitCeiling=false; };
 MoveResult moveAndCollide(QRectF&,QVector2D&,double,const QVector<QRectF>&);
+MoveResult moveAndCollideOneWay(
+    QRectF &rect,
+    QVector2D &velocity,
+    double dt,
+    const QVector<QRectF> &solids,
+    const QVector<QRectF> &oneWayPlatforms,
+    bool ignoreOneWay = false);
 class Camera {
 public:
     void configure(double viewportWidth, double worldWidth);

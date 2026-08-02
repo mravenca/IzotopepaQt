@@ -27,6 +27,8 @@ add_executable(IzotopepaQtGameV3
     src/pressureplate.h
     src/conveyor.cpp
     src/conveyor.h
+    src/onewayplatform.cpp
+    src/onewayplatform.h
     src/worldevent.cpp
     src/worldevent.h
     src/support.cpp

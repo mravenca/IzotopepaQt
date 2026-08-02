@@ -221,6 +221,11 @@ bool World::loadLevel(int index)
         conveyors_ << Conveyor(spawn.rect, spawn.speed);
     }
 
+    oneWayPlatforms_.clear();
+    for (const auto &spawn : level_.oneWayPlatforms()) {
+        oneWayPlatforms_ << OneWayPlatform(spawn.rect);
+    }
+
     pressurePlates_.clear();
     worldEvents_.clear();
     for (const auto &spawn : level_.pressurePlates()) {
@@ -287,6 +292,7 @@ void World::update(double dt)
         return;
     }
     animationTime_ += dt;
+    oneWayDropTimer_ = std::max(0.0, oneWayDropTimer_ - dt);
     shakeTime_ = std::max(0.0, shakeTime_ - dt);
     if (shakeTime_ <= 0.0) {
         shakeStrength_ = 0.0;
@@ -381,7 +387,13 @@ void World::update(double dt)
 
     updatePushBoxes(dt);
     rebuildCollision();
-    player_.update(dt, collision_, level_.ladders(), level_.worldSize().width());
+    player_.update(
+        dt,
+        collision_,
+        oneWayRects(),
+        level_.ladders(),
+        level_.worldSize().width(),
+        oneWayDropTimer_ > 0.0);
     updateConveyors(dt);
     updateJumpPads(dt);
     updatePressurePlates(dt);
@@ -391,6 +403,7 @@ void World::update(double dt)
         enemy.update(
             dt,
             collision_,
+            oneWayRects(),
             player_.rect().center(),
             projectiles_);
     }
@@ -1057,7 +1070,12 @@ void World::updatePushBoxes(double dt)
                     + static_cast<float>(kGravity * dt),
                 950.0f));
 
-        moveAndCollide(box.rect, box.velocity, dt, blockers);
+        moveAndCollideOneWay(
+            box.rect,
+            box.velocity,
+            dt,
+            blockers,
+            oneWayRects());
 
         if (box.rect.left() < 0.0) {
             box.rect.moveLeft(0.0);
@@ -1095,10 +1113,42 @@ void World::updatePushBoxes(double dt)
     }
 }
 
+QVector<QRectF> World::oneWayRects() const
+{
+    QVector<QRectF> rects;
+    rects.reserve(oneWayPlatforms_.size());
+
+    for (const OneWayPlatform &platform : oneWayPlatforms_) {
+        rects << platform.rect();
+    }
+
+    return rects;
+}
+
+bool World::playerStandingOnOneWay() const
+{
+    const QRectF feet(
+        player_.rect().left() + 5.0,
+        player_.rect().bottom() - 3.0,
+        player_.rect().width() - 10.0,
+        8.0);
+
+    for (const OneWayPlatform &platform : oneWayPlatforms_) {
+        const QRectF &rect = platform.rect();
+        if (feet.intersects(rect)
+            && player_.rect().bottom() <= rect.top() + 5.0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void World::setInput(bool left, bool right, bool up, bool down)
 {
     inputLeft_ = left;
     inputRight_ = right;
+    inputDown_ = down;
 
     player_.setLeft(left);
     player_.setRight(right);
@@ -1108,9 +1158,19 @@ void World::setInput(bool left, bool right, bool up, bool down)
 
 void World::jump()
 {
-    if (!completed_ && !gameOver_) {
-        player_.jump();
+    if (completed_ || gameOver_) {
+        return;
     }
+
+    if (inputDown_ && playerStandingOnOneWay()) {
+        oneWayDropTimer_ = 0.24;
+        player_.dropThroughOneWay();
+        message_ = "Drop through";
+        messageTime_ = 0.45;
+        return;
+    }
+
+    player_.jump();
 }
 
 void World::stopJump()
@@ -1326,6 +1386,10 @@ void World::draw(QPainter &painter, double cameraX) const
 
     for (const auto &platform : moving_) {
         drawMovingPlatform(painter, platform.rect.translated(-cameraX, 0));
+    }
+
+    for (const OneWayPlatform &platform : oneWayPlatforms_) {
+        platform.draw(painter, cameraX);
     }
 
     for (const Conveyor &conveyor : conveyors_) {

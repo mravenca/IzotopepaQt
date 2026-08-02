@@ -24,7 +24,13 @@ public:
     explicit Player(const SpriteSheet *sheet = nullptr);
 
     void reset(QPointF, bool full = true);
-    void update(double, const QVector<QRectF> &, const QVector<QRectF> &, double);
+    void update(
+        double dt,
+        const QVector<QRectF> &platforms,
+        const QVector<QRectF> &oneWayPlatforms,
+        const QVector<QRectF> &ladders,
+        double worldWidth,
+        bool ignoreOneWay = false);
 
     void setLeft(bool);
     void setRight(bool);
@@ -33,6 +39,7 @@ public:
     void jump();
     void stopJump();
     void launch(const QVector2D &impulse);
+    void dropThroughOneWay();
     QVector2D velocity() const;
 
     bool carryBy(
@@ -93,6 +100,7 @@ public:
     void update(
         double dt,
         const QVector<QRectF> &platforms,
+        const QVector<QRectF> &oneWayPlatforms,
         QPointF player,
         QVector<Projectile> &shots);
 

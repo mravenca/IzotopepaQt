@@ -1,3 +1,11 @@
+## M4 — Trust Your Step
+
+### Added
+- Directional one-way platform collision.
+- Down + Jump drop-through control.
+- One-way support for players, enemies, and pushable boxes.
+- JSON level definitions and dedicated vector rendering.
+
 ## M3 — Assembly Line
 
 ### Added

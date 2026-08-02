@@ -37,8 +37,10 @@ void Player::reset(QPointF position, bool full)
 void Player::update(
     double dt,
     const QVector<QRectF> &platforms,
+    const QVector<QRectF> &oneWayPlatforms,
     const QVector<QRectF> &ladders,
-    double worldWidth)
+    double worldWidth,
+    bool ignoreOneWay)
 {
     jumpBuffer_ = std::max(0.0, jumpBuffer_ - dt);
     coyoteTime_ = std::max(0.0, coyoteTime_ - dt);
@@ -115,8 +117,13 @@ void Player::update(
     }
 
     const bool wasGrounded = onGround_;
-    onGround_ =
-        moveAndCollide(rect_, vel_, dt, collisionPlatforms).onGround;
+    onGround_ = moveAndCollideOneWay(
+        rect_,
+        vel_,
+        dt,
+        collisionPlatforms,
+        oneWayPlatforms,
+        ignoreOneWay).onGround;
 
     if (onGround_) {
         coyoteTime_ = 0.10;
@@ -182,6 +189,16 @@ void Player::launch(const QVector2D &impulse)
 QVector2D Player::velocity() const
 {
     return vel_;
+}
+
+void Player::dropThroughOneWay()
+{
+    climbing_ = false;
+    onGround_ = false;
+    coyoteTime_ = 0.0;
+    jumpBuffer_ = 0.0;
+    vel_.setY(std::max(vel_.y(), 150.0f));
+    rect_.translate(0.0, 3.0);
 }
 
 bool Player::carryBy(
@@ -342,6 +359,7 @@ Enemy::Enemy(
 void Enemy::update(
     double dt,
     const QVector<QRectF> &platforms,
+    const QVector<QRectF> &oneWayPlatforms,
     QPointF player,
     QVector<Projectile> &shots)
 {
@@ -394,6 +412,15 @@ void Enemy::update(
         }
     }
 
+    if (!standing) {
+        for (const QRectF &platform : oneWayPlatforms) {
+            if (feetProbe.intersects(platform)) {
+                standing = true;
+                break;
+            }
+        }
+    }
+
     if (kind_ == "jumper"
         && jumpCd_ <= 0.0
         && distanceX < 300.0
@@ -409,8 +436,12 @@ void Enemy::update(
         static_cast<double>(vel_.y()) + Gravity * dt,
         900.0));
 
-    const auto result =
-        moveAndCollide(rect_, vel_, dt, platforms);
+    const auto result = moveAndCollideOneWay(
+        rect_,
+        vel_,
+        dt,
+        platforms,
+        oneWayPlatforms);
 
     if (result.hitWall) {
         direction_ *= -1;
