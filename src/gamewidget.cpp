@@ -2,15 +2,66 @@
 #include "support.h"
 #include <QKeyEvent>
 #include <QPainter>
+#include <QRadialGradient>
 #include <QSettings>
 #include <QtMath>
 #include <algorithm>
 GameWidget::GameWidget(QWidget*p):QWidget(p),playerSheet_(loadTransparentImage(":/sprites/izotop.bmp"),96,128),enemySheet_(loadTransparentImage(":/sprites/potvory.bmp"),64,96),world_(&playerSheet_,&enemySheet_){setWindowTitle("Izotopepa Complete Edition");setFixedSize(W,H);setFocusPolicy(Qt::StrongFocus);QSettings s("OpenAI","Izotopepa");unlocked_=std::clamp(s.value("unlockedLevel",0).toInt(),0,2);timer_.setInterval(16);connect(&timer_,&QTimer::timeout,this,&GameWidget::loop);elapsed_.start();timer_.start();}
 void GameWidget::startLevel(int n){world_.loadLevel(n);camera_.configure(W,world_.width());camera_.reset();mode_=Mode::Playing;left_=right_=up_=down_=false;}
-void GameWidget::loop(){double dt=std::min(.05,elapsed_.restart()/1000.0);if(dt>0.0){const double instantFps=1.0/dt;fps_=fps_<=0.0?instantFps:(fps_*.9+instantFps*.1);}if(mode_==Mode::Playing){world_.setInput(left_,right_,up_,down_);world_.update(dt);const double cameraDirection=(right_?1.0:0.0)-(left_?1.0:0.0);camera_.update(world_.player().rect().center().x(),cameraDirection,dt);updateMode();}update();}
+void GameWidget::loop(){double dt=std::min(.05,elapsed_.restart()/1000.0);sceneTime_+=dt;if(dt>0.0){const double instantFps=1.0/dt;fps_=fps_<=0.0?instantFps:(fps_*.9+instantFps*.1);}if(mode_==Mode::Playing){world_.setInput(left_,right_,up_,down_);world_.update(dt);const double cameraDirection=(right_?1.0:0.0)-(left_?1.0:0.0);camera_.update(world_.player().rect().center().x(),cameraDirection,dt);updateMode();}update();}
 void GameWidget::updateMode(){if(world_.gameOver())mode_=Mode::GameOver;else if(world_.completed()){unlocked_=std::max(unlocked_,std::min(2,world_.levelIndex()+1));mode_=Mode::Complete;}}
 void GameWidget::paintEvent(QPaintEvent*){QPainter p(this);p.setRenderHint(QPainter::Antialiasing,false);drawBackground(p);if(mode_!=Mode::Menu&&mode_!=Mode::Help&&mode_!=Mode::Settings){drawPlatforms(p);world_.draw(p,camera_.x());drawHud(p);}if(mode_==Mode::Menu)drawMenu(p,"IZOTOPEPA: COMPLETE EDITION",{"New game","Select level","Help","Settings","Quit"});else if(mode_==Mode::Paused)drawMenu(p,"PAUSED",{"Resume","Restart level","Main menu"});else if(mode_==Mode::Help)drawMenu(p,"CONTROLS",{"A/D or arrows: move","Space/W/Up: jump or climb","S/Down: climb down","F/Ctrl: shoot","E: activate switch","P/Esc: pause","Backspace: return"});else if(mode_==Mode::Settings)drawMenu(p,"SETTINGS",{QString("Sound: %1").arg(world_.soundEnabled()?"On":"Off"),"Reset saved progress","Back"});else if(mode_==Mode::GameOver)drawMenu(p,"GAME OVER",{"Restart from checkpoint","Restart level","Main menu"});else if(mode_==Mode::Complete)drawMenu(p,"LEVEL COMPLETE",{world_.levelIndex()<2?"Next level":"Play again","Main menu"});}
-void GameWidget::drawBackground(QPainter&p){p.fillRect(rect(),QColor(120,195,235));p.setPen(Qt::NoPen);p.setBrush(QColor(75,145,105));for(int i=-1;i<9;++i){double x=i*520-std::fmod(camera_.x()*.18,520.0);p.drawEllipse(QPointF(x+190,575),235,220);}p.setBrush(QColor(255,255,255,210));for(int i=0;i<8;++i){double x=i*600-std::fmod(camera_.x()*.1,600.0),y=80+(i%3)*70;p.drawEllipse(QPointF(x+35,y),30,25);p.drawEllipse(QPointF(x+70,y-10),38,34);p.drawEllipse(QPointF(x+110,y),30,25);}}
+void GameWidget::drawBackground(QPainter &p)
+{
+    QLinearGradient sky(0, 0, 0, H);
+    sky.setColorAt(0.0, QColor(75, 155, 220));
+    sky.setColorAt(0.58, QColor(145, 210, 240));
+    sky.setColorAt(1.0, QColor(225, 235, 205));
+    p.fillRect(rect(), sky);
+
+    const QPointF sun(790, 95);
+    QRadialGradient sunGlow(sun, 105);
+    sunGlow.setColorAt(0.0, QColor(255, 245, 175, 210));
+    sunGlow.setColorAt(0.35, QColor(255, 235, 140, 95));
+    sunGlow.setColorAt(1.0, QColor(255, 235, 140, 0));
+    p.setPen(Qt::NoPen);
+    p.setBrush(sunGlow);
+    p.drawEllipse(sun, 105, 105);
+
+    p.setBrush(QColor(105, 145, 155, 155));
+    const double farOffset = std::fmod(camera_.x() * 0.08, 440.0);
+    for (int i = -2; i < 6; ++i) {
+        const double x = i * 440.0 - farOffset;
+        QPolygonF mountain;
+        mountain << QPointF(x, 520)
+                 << QPointF(x + 145, 285)
+                 << QPointF(x + 285, 520);
+        p.drawPolygon(mountain);
+    }
+
+    p.setBrush(QColor(70, 142, 102));
+    const double hillOffset = std::fmod(camera_.x() * 0.18, 520.0);
+    for (int i = -1; i < 9; ++i) {
+        const double x = i * 520.0 - hillOffset;
+        p.drawEllipse(QPointF(x + 190, 580), 235, 220);
+    }
+
+    const double cloudTravel = std::fmod(sceneTime_ * 12.0, 600.0);
+    p.setBrush(QColor(255, 255, 255, 215));
+    for (int i = -1; i < 9; ++i) {
+        double x = i * 600.0
+            - std::fmod(camera_.x() * 0.10, 600.0)
+            + cloudTravel;
+        const double y = 72.0 + (i % 3) * 68.0
+            + qSin(sceneTime_ * 0.45 + i) * 4.0;
+        const double scale = 0.82 + (i % 3) * 0.12;
+
+        p.drawEllipse(QPointF(x + 35 * scale, y), 30 * scale, 25 * scale);
+        p.drawEllipse(QPointF(x + 70 * scale, y - 10 * scale), 38 * scale, 34 * scale);
+        p.drawEllipse(QPointF(x + 110 * scale, y), 30 * scale, 25 * scale);
+    }
+}
+
 void GameWidget::drawPlatforms(QPainter&p){/* Static geometry is intentionally drawn from the level-independent collision silhouette via world objects; ground strip provides visual continuity. */p.fillRect(QRectF(0,570,W,70),QColor(70,110,50));p.fillRect(QRectF(0,570,W,8),QColor(120,175,75));}
 void GameWidget::drawHud(QPainter&p){p.setPen(Qt::NoPen);p.setBrush(QColor(20,20,28,220));p.drawRoundedRect(QRectF(12,12,430,80),8,8);p.fillRect(QRectF(25,28,170,20),QColor(60,60,70));p.fillRect(QRectF(25,28,170.0*std::max(0,world_.player().health())/5.0,20),QColor(210,55,55));p.setPen(Qt::white);p.setFont(QFont("Arial",11,QFont::Bold));p.drawText(QRectF(28,25,180,25),Qt::AlignVCenter,QString("Health %1/5").arg(std::max(0,world_.player().health())));p.drawText(QRectF(25,55,400,25),Qt::AlignVCenter,QString("Ammo %1     Score %2     %3").arg(world_.player().ammo()).arg(world_.player().score()).arg(world_.levelName()));if(!world_.message().isEmpty()){p.setBrush(QColor(0,0,0,170));p.setPen(Qt::NoPen);p.drawRoundedRect(QRectF(330,105,300,42),8,8);p.setPen(Qt::yellow);p.drawText(QRectF(330,105,300,42),Qt::AlignCenter,world_.message());}if(debugOverlay_)drawDebugOverlay(p);}
 void GameWidget::drawDebugOverlay(QPainter&p){p.save();p.setPen(Qt::NoPen);p.setBrush(QColor(0,0,0,185));p.drawRoundedRect(QRectF(W-220,12,208,88),6,6);p.setPen(QColor(120,255,140));p.setFont(QFont("Monospace",10));const QRectF r(W-210,20,190,70);p.drawText(r,Qt::AlignLeft|Qt::AlignTop,QString("FPS: %1\nCamera X: %2\nLook ahead: %3\nPlayer: %4, %5\nF3: hide debug").arg(fps_,0,'f',1).arg(camera_.x(),0,'f',1).arg(camera_.lookAhead(),0,'f',1).arg(world_.player().rect().x(),0,'f',1).arg(world_.player().rect().y(),0,'f',1));p.restore();}

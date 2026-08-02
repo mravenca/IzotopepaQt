@@ -49,4 +49,5 @@ private:
     int menuIndex_ = 0;
     int unlocked_ = 0;
     double fps_ = 0.0;
+    double sceneTime_ = 0.0;
 };

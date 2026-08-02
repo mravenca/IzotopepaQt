@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QPainter>
 #include <QLinearGradient>
+#include <QRadialGradient>
 #include <QRandomGenerator>
 #include <QSettings>
 #include <QtMath>
@@ -201,6 +202,7 @@ void World::update(double dt)
     if (completed_ || gameOver_) {
         return;
     }
+    animationTime_ += dt;
     shakeTime_ = std::max(0.0, shakeTime_ - dt);
     if (shakeTime_ <= 0.0) {
         shakeStrength_ = 0.0;
@@ -571,27 +573,56 @@ void World::draw(QPainter &painter, double cameraX) const
         }
     }
 
-    for (const auto &pickup : pickups_) {
+    for (int index = 0; index < pickups_.size(); ++index) {
+        const Pickup &pickup = pickups_[index];
         if (pickup.taken) {
             continue;
         }
-        const QRectF rect = pickup.rect.translated(-cameraX, 0);
-        painter.setBrush(pickup.kind == "health" ? Qt::red : Qt::cyan);
-        painter.setPen(Qt::white);
-        painter.drawRoundedRect(rect, 5, 5);
+
+        QRectF rect = pickup.rect.translated(-cameraX, 0);
+        rect.translate(0, qSin(animationTime_ * 4.0 + index * 1.7) * 4.0);
+
+        const QColor color = pickup.kind == "health"
+            ? QColor(220, 45, 65)
+            : QColor(40, 190, 235);
+
+        QRadialGradient glow(rect.center(), 28);
+        glow.setColorAt(0.0, QColor(color.red(), color.green(), color.blue(), 100));
+        glow.setColorAt(1.0, QColor(color.red(), color.green(), color.blue(), 0));
+
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(glow);
+        painter.drawEllipse(rect.center(), 28, 28);
+
+        painter.setBrush(color);
+        painter.setPen(QPen(Qt::white, 2));
+        painter.drawRoundedRect(rect, 6, 6);
         painter.drawText(rect, Qt::AlignCenter, pickup.kind == "health" ? "+" : "A");
     }
-
-    for (const auto &key : keys_) {
+    for (int index = 0; index < keys_.size(); ++index) {
+        const KeyObj &key = keys_[index];
         if (key.taken) {
             continue;
         }
-        const QRectF rect = key.rect.translated(-cameraX, 0);
-        painter.setPen(QPen(Qt::yellow, 4));
-        painter.drawLine(rect.left(), rect.center().y(), rect.right(), rect.center().y());
-        painter.drawEllipse(QPointF(rect.left() + 4, rect.center().y()), 5, 5);
-    }
 
+        const QRectF rect = key.rect.translated(-cameraX, 0);
+        const QPointF center(
+            rect.center().x(),
+            rect.center().y() + qSin(animationTime_ * 3.5 + index) * 4.0);
+
+        const double widthScale =
+            0.25 + 0.75 * qAbs(qCos(animationTime_ * 2.8 + index));
+        const double halfLength = rect.width() * 0.5 * widthScale;
+
+        painter.setPen(QPen(QColor(255, 220, 50), 4, Qt::SolidLine, Qt::RoundCap));
+        painter.drawLine(
+            QPointF(center.x() - halfLength, center.y()),
+            QPointF(center.x() + halfLength, center.y()));
+        painter.drawEllipse(
+            QPointF(center.x() - halfLength + 3.0, center.y()),
+            5.0 * widthScale + 1.0,
+            5.0);
+    }
     for (const auto &door : doors_) {
         if (door.open) {
             continue;
@@ -603,9 +634,68 @@ void World::draw(QPainter &painter, double cameraX) const
         painter.drawEllipse(QPointF(rect.right() - 12, rect.center().y()), 3, 3);
     }
 
-    for (const auto &switchObject : switches_) {
+    for (int index = 0; index < switches_.size(); ++index) {
+        const SwitchObj &switchObject = switches_[index];
         const QRectF rect = switchObject.rect.translated(-cameraX, 0);
-        painter.fillRect(rect, switchObject.active ? Qt::green : Qt::darkRed);
+        const QColor color = switchObject.active
+            ? QColor(60, 225, 90)
+            : QColor(170, 45, 45);
+
+        const double glowRadius = 22.0
+            + qSin(animationTime_ * 5.0 + index) * 3.0;
+
+        QRadialGradient glow(rect.center(), glowRadius);
+        glow.setColorAt(0.0, QColor(color.red(), color.green(), color.blue(), 110));
+        glow.setColorAt(1.0, QColor(color.red(), color.green(), color.blue(), 0));
+
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(glow);
+        painter.drawEllipse(rect.center(), glowRadius, glowRadius);
+
+        painter.setBrush(QColor(45, 45, 55));
+        painter.setPen(QPen(QColor(20, 20, 25), 2));
+        painter.drawRoundedRect(rect, 4, 4);
+
+        painter.setBrush(color);
+        painter.setPen(QPen(Qt::white, 1));
+        painter.drawRoundedRect(rect.adjusted(7, 5, -7, -5), 3, 3);
+    }
+
+    if (level_.checkpoint().x() >= 0.0) {
+        const QPointF base(
+            level_.checkpoint().x() - cameraX,
+            level_.checkpoint().y());
+
+        painter.setPen(QPen(QColor(65, 55, 45), 5));
+        painter.drawLine(base, base + QPointF(0, -72));
+
+        const double wave = qSin(animationTime_ * 4.0) * 4.0;
+        QPolygonF flag;
+        flag << base + QPointF(2, -70)
+             << base + QPointF(42 + wave, -58)
+             << base + QPointF(2, -46);
+
+        painter.setBrush(QColor(70, 210, 245));
+        painter.setPen(QPen(Qt::white, 2));
+        painter.drawPolygon(flag);
+    }
+
+    {
+        const QRectF goal = level_.goal().translated(-cameraX, 0);
+        const QPointF pole(goal.left() + 10.0, goal.bottom());
+
+        painter.setPen(QPen(QColor(45, 45, 50), 6));
+        painter.drawLine(pole, QPointF(pole.x(), goal.top()));
+
+        const double wave = qSin(animationTime_ * 4.5) * 5.0;
+        QPolygonF flag;
+        flag << QPointF(pole.x() + 3.0, goal.top() + 4.0)
+             << QPointF(pole.x() + 48.0 + wave, goal.top() + 18.0)
+             << QPointF(pole.x() + 3.0, goal.top() + 34.0);
+
+        painter.setBrush(QColor(235, 70, 65));
+        painter.setPen(QPen(QColor(255, 225, 180), 2));
+        painter.drawPolygon(flag);
     }
 
     for (const auto &enemy : enemies_) {
