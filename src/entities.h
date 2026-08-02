@@ -32,6 +32,8 @@ public:
     void setDown(bool);
     void jump();
     void stopJump();
+    void launch(const QVector2D &impulse);
+    QVector2D velocity() const;
 
     bool carryBy(
         const QPointF &delta,

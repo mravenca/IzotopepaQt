@@ -287,5 +287,51 @@
       "radius": 145,
       "damage": 3
     }
+  ],
+  "pushableBoxes": [
+    {
+      "x": 500,
+      "y": 522,
+      "width": 48,
+      "height": 48
+    },
+    {
+      "x": 1980,
+      "y": 522,
+      "width": 48,
+      "height": 48
+    }
+  ],
+  "jumpPads": [
+    {
+      "x": 1320,
+      "y": 550,
+      "width": 72,
+      "height": 20,
+      "strength": 900,
+      "horizontal": 0,
+      "delay": 0.08,
+      "cooldown": 0.25
+    },
+    {
+      "x": 2400,
+      "y": 550,
+      "width": 72,
+      "height": 20,
+      "strength": 1050,
+      "horizontal": 120,
+      "delay": 0.06,
+      "cooldown": 0.3
+    }
+  ],
+  "pressurePlates": [
+    {
+      "x": 2030,
+      "y": 552,
+      "width": 84,
+      "height": 18,
+      "target": "bronze",
+      "requiredWeight": 1
+    }
   ]
 }

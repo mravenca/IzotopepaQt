@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QPainter>
 #include <QLinearGradient>
+#include <QLineF>
 #include <QRadialGradient>
 #include <QRandomGenerator>
 #include <QSettings>
@@ -148,7 +149,7 @@ bool World::loadLevel(int index)
 
     doors_.clear();
     for (const auto &spawn : level_.doors()) {
-        doors_ << Door{spawn.key, spawn.rect, false};
+        doors_ << Door{spawn.key, spawn.rect, false, false, false};
     }
 
     switches_.clear();
@@ -184,6 +185,48 @@ bool World::loadLevel(int index)
             -1.0,
             true
         };
+    }
+
+    pushBoxes_.clear();
+    for (const auto &spawn : level_.pushBoxes()) {
+        pushBoxes_ << PushBox {
+            QRectF(
+                spawn.position.x(),
+                spawn.position.y(),
+                spawn.width,
+                spawn.height),
+            QVector2D(),
+            true
+        };
+    }
+
+    jumpPads_.clear();
+    jumpPadActivations_.clear();
+    for (const auto &spawn : level_.jumpPads()) {
+        jumpPads_ << JumpPad(
+            QRectF(
+                spawn.position.x(),
+                spawn.position.y(),
+                spawn.width,
+                spawn.height),
+            spawn.strength,
+            spawn.horizontalImpulse,
+            spawn.launchDelay,
+            spawn.cooldown);
+        jumpPadActivations_ << JumpPadActivation {};
+    }
+
+    pressurePlates_.clear();
+    worldEvents_.clear();
+    for (const auto &spawn : level_.pressurePlates()) {
+        pressurePlates_ << PressurePlate(
+            QRectF(
+                spawn.position.x(),
+                spawn.position.y(),
+                spawn.width,
+                spawn.height),
+            spawn.target,
+            spawn.requiredWeight);
     }
 
     projectiles_.clear();
@@ -224,6 +267,11 @@ void World::rebuildCollision()
     for (const auto &barrel : barrels_) {
         if (barrel.alive) {
             collision_ << barrel.rect;
+        }
+    }
+    for (const auto &box : pushBoxes_) {
+        if (box.alive) {
+            collision_ << box.rect;
         }
     }
 }
@@ -326,8 +374,13 @@ void World::update(double dt)
         }
     }
 
+    updatePushBoxes(dt);
     rebuildCollision();
     player_.update(dt, collision_, level_.ladders(), level_.worldSize().width());
+    updateJumpPads(dt);
+    updatePressurePlates(dt);
+    processWorldEvents();
+    refreshDoorStates();
     for (auto &enemy : enemies_) {
         enemy.update(
             dt,
@@ -389,13 +442,13 @@ void World::update(double dt)
     }
 
     for (auto &door : doors_) {
-        if (!door.open && player_.hasKey(door.key)
+        if (!door.latchedOpen && player_.hasKey(door.key)
             && player_.rect().adjusted(-8, -8, 8, 8).intersects(door.rect)) {
-            door.open = true;
+            door.latchedOpen = true;
+            refreshDoorStates();
             message_ = door.key + " door unlocked";
             messageTime_ = 2;
             beep();
-            rebuildCollision();
         }
     }
 
@@ -583,8 +636,410 @@ void World::update(double dt)
     }
 }
 
+QVector<QRectF> World::pushBoxBlockers(int excludedIndex) const
+{
+    QVector<QRectF> blockers = level_.platforms();
+
+    for (const auto &platform : moving_) {
+        blockers << platform.rect;
+    }
+
+    for (const auto &door : doors_) {
+        if (!door.open) {
+            blockers << door.rect;
+        }
+    }
+
+    for (const auto &crate : crates_) {
+        if (crate.alive) {
+            blockers << crate.rect;
+        }
+    }
+
+    for (const auto &barrel : barrels_) {
+        if (barrel.alive) {
+            blockers << barrel.rect;
+        }
+    }
+
+    for (int index = 0; index < pushBoxes_.size(); ++index) {
+        if (index != excludedIndex && pushBoxes_[index].alive) {
+            blockers << pushBoxes_[index].rect;
+        }
+    }
+
+    return blockers;
+}
+
+void World::updatePressurePlates(double dt)
+{
+    for (PressurePlate &plate : pressurePlates_) {
+        const QRectF trigger = plate.triggerZone();
+        double weight = 0.0;
+
+        const QRectF playerFeet(
+            player_.rect().left() + 5.0,
+            player_.rect().bottom() - 5.0,
+            player_.rect().width() - 10.0,
+            10.0);
+
+        if (playerFeet.intersects(trigger)) {
+            weight += 1.0;
+        }
+
+        for (const PushBox &box : pushBoxes_) {
+            if (!box.alive) {
+                continue;
+            }
+
+            const QRectF boxFeet(
+                box.rect.left() + 4.0,
+                box.rect.bottom() - 5.0,
+                box.rect.width() - 8.0,
+                10.0);
+
+            if (boxFeet.intersects(trigger)) {
+                weight += 1.0;
+            }
+        }
+
+        for (const Crate &crate : crates_) {
+            if (crate.alive
+                && crate.rect.adjusted(4.0, 35.0, -4.0, 5.0)
+                       .intersects(trigger)) {
+                weight += 1.0;
+            }
+        }
+
+        for (const Barrel &barrel : barrels_) {
+            if (barrel.alive
+                && barrel.rect.adjusted(4.0, 38.0, -4.0, 5.0)
+                       .intersects(trigger)) {
+                weight += 1.0;
+            }
+        }
+
+        plate.update(weight, dt, worldEvents_);
+    }
+}
+
+void World::processWorldEvents()
+{
+    for (const WorldEvent &event : worldEvents_.takeAll()) {
+        if (event.type != WorldEventType::SetSignal) {
+            continue;
+        }
+
+        for (Door &door : doors_) {
+            if (door.key == event.channel) {
+                door.signalActive = event.active;
+            }
+        }
+
+        message_ = event.active
+            ? event.channel + " pressure plate activated"
+            : event.channel + " pressure plate released";
+        messageTime_ = 1.0;
+        beep();
+    }
+}
+
+void World::refreshDoorStates()
+{
+    bool collisionChanged = false;
+
+    for (Door &door : doors_) {
+        bool nextOpen = door.latchedOpen || door.signalActive;
+
+        if (!nextOpen && door.open) {
+            bool obstructed = player_.rect().intersects(door.rect);
+
+            for (const PushBox &box : pushBoxes_) {
+                if (box.alive && box.rect.intersects(door.rect)) {
+                    obstructed = true;
+                    break;
+                }
+            }
+
+            if (obstructed) {
+                nextOpen = true;
+            }
+        }
+
+        if (door.open != nextOpen) {
+            door.open = nextOpen;
+            collisionChanged = true;
+        }
+    }
+
+    if (collisionChanged) {
+        rebuildCollision();
+    }
+}
+
+void World::updateJumpPads(double dt)
+{
+    for (int index = 0; index < jumpPads_.size(); ++index) {
+        JumpPad &pad = jumpPads_[index];
+        JumpPadActivation &activation = jumpPadActivations_[index];
+
+        pad.update(dt);
+
+        const QRectF trigger = pad.triggerZone();
+        const QRectF playerFeet(
+            player_.rect().left() + 5.0,
+            player_.rect().bottom() - 5.0,
+            player_.rect().width() - 10.0,
+            10.0);
+
+        if (!activation.player
+            && player_.velocity().y() >= -10.0f
+            && playerFeet.intersects(trigger)) {
+            const bool compressionCycleActive =
+                !activation.pushBoxes.isEmpty();
+
+            if (pad.requestTrigger() || compressionCycleActive) {
+                activation.player = true;
+            }
+        }
+
+        for (int boxIndex = 0; boxIndex < pushBoxes_.size(); ++boxIndex) {
+            PushBox &box = pushBoxes_[boxIndex];
+
+            if (!box.alive
+                || activation.pushBoxes.contains(boxIndex)
+                || box.velocity.y() < -10.0f) {
+                continue;
+            }
+
+            const QRectF boxFeet(
+                box.rect.left() + 4.0,
+                box.rect.bottom() - 5.0,
+                box.rect.width() - 8.0,
+                10.0);
+
+            if (!boxFeet.intersects(trigger)) {
+                continue;
+            }
+
+            const bool compressionCycleActive =
+                activation.player || !activation.pushBoxes.isEmpty();
+
+            if (pad.requestTrigger() || compressionCycleActive) {
+                activation.pushBoxes << boxIndex;
+            }
+        }
+
+        if (pad.consumeLaunch()) {
+            launchFromPad(index);
+        }
+    }
+}
+
+void World::launchFromPad(int padIndex)
+{
+    if (padIndex < 0 || padIndex >= jumpPads_.size()) {
+        return;
+    }
+
+    JumpPad &pad = jumpPads_[padIndex];
+    JumpPadActivation &activation = jumpPadActivations_[padIndex];
+    bool launched = false;
+
+    if (activation.player) {
+        const QRectF expandedTrigger =
+            pad.triggerZone().adjusted(-14.0, -18.0, 14.0, 12.0);
+
+        if (player_.rect().intersects(expandedTrigger)) {
+            const float launchX = qFuzzyIsNull(pad.horizontalImpulse())
+                ? player_.velocity().x()
+                : static_cast<float>(pad.horizontalImpulse());
+            player_.launch(QVector2D(
+                launchX,
+                static_cast<float>(-pad.strength())));
+            launched = true;
+        }
+    }
+
+    for (const int boxIndex : activation.pushBoxes) {
+        if (boxIndex < 0 || boxIndex >= pushBoxes_.size()) {
+            continue;
+        }
+
+        PushBox &box = pushBoxes_[boxIndex];
+        if (!box.alive) {
+            continue;
+        }
+
+        const QRectF expandedTrigger =
+            pad.triggerZone().adjusted(-12.0, -18.0, 12.0, 12.0);
+
+        if (!box.rect.intersects(expandedTrigger)) {
+            continue;
+        }
+
+        const float launchX = qFuzzyIsNull(pad.horizontalImpulse())
+            ? box.velocity.x()
+            : static_cast<float>(pad.horizontalImpulse());
+        box.velocity = QVector2D(
+            launchX,
+            static_cast<float>(-pad.strength()));
+        launched = true;
+    }
+
+    activation = JumpPadActivation {};
+
+    if (!launched) {
+        return;
+    }
+
+    const QPointF burstCenter(
+        pad.rect().center().x(),
+        pad.rect().top());
+
+    for (int burst = 0; burst < 3; ++burst) {
+        explode(
+            burstCenter + QPointF((burst - 1) * 13.0, -3.0),
+            burst == 1
+                ? QColor(255, 245, 120)
+                : QColor(255, 150, 35));
+    }
+
+    shakeTime_ = std::max(shakeTime_, 0.16);
+    shakeStrength_ = std::max(shakeStrength_, 4.0);
+    message_ = "Jump pad!";
+    messageTime_ = 0.7;
+    beep();
+}
+
+void World::updatePushBoxes(double dt)
+{
+    constexpr double kGravity = 1900.0;
+    constexpr double kPushSpeed = 135.0;
+    constexpr double kContactTolerance = 7.0;
+
+    bool collisionChanged = false;
+
+    for (int index = 0; index < pushBoxes_.size(); ++index) {
+        PushBox &box = pushBoxes_[index];
+
+        if (!box.alive) {
+            continue;
+        }
+
+        QVector<QRectF> blockers = pushBoxBlockers(index);
+
+        // Carry boxes standing on a moving platform by its per-frame delta.
+        for (const auto &platform : moving_) {
+            const QRectF previousPlatform =
+                platform.rect.translated(-platform.delta);
+            const QRectF boxFeet(
+                box.rect.left() + 4.0,
+                box.rect.bottom() - 3.0,
+                box.rect.width() - 8.0,
+                7.0);
+
+            if (!boxFeet.intersects(previousPlatform)
+                || box.rect.bottom() > previousPlatform.top() + 5.0) {
+                continue;
+            }
+
+            QRectF carried = box.rect.translated(platform.delta);
+            bool blocked = false;
+
+            for (const QRectF &blocker : blockers) {
+                if (carried.intersects(blocker)) {
+                    blocked = true;
+                    break;
+                }
+            }
+
+            if (!blocked) {
+                box.rect = carried;
+            }
+            break;
+        }
+
+        const QRectF playerRect = player_.rect();
+        const bool verticalOverlap =
+            playerRect.bottom() > box.rect.top() + 6.0
+            && playerRect.top() < box.rect.bottom() - 6.0;
+
+        const double gapOnLeft = box.rect.left() - playerRect.right();
+        const double gapOnRight = playerRect.left() - box.rect.right();
+
+        int pushDirection = 0;
+
+        if (inputRight_
+            && verticalOverlap
+            && gapOnLeft >= -2.0
+            && gapOnLeft <= kContactTolerance) {
+            pushDirection = 1;
+        } else if (inputLeft_
+                   && verticalOverlap
+                   && gapOnRight >= -2.0
+                   && gapOnRight <= kContactTolerance) {
+            pushDirection = -1;
+        }
+
+        box.velocity.setX(
+            pushDirection == 0
+                ? box.velocity.x() * 0.72f
+                : static_cast<float>(pushDirection * kPushSpeed));
+
+        if (qAbs(box.velocity.x()) < 1.0f) {
+            box.velocity.setX(0.0f);
+        }
+
+        box.velocity.setY(
+            std::min(
+                box.velocity.y()
+                    + static_cast<float>(kGravity * dt),
+                950.0f));
+
+        moveAndCollide(box.rect, box.velocity, dt, blockers);
+
+        if (box.rect.left() < 0.0) {
+            box.rect.moveLeft(0.0);
+            box.velocity.setX(0.0f);
+        }
+
+        if (box.rect.right() > level_.worldSize().width()) {
+            box.rect.moveRight(level_.worldSize().width());
+            box.velocity.setX(0.0f);
+        }
+
+        bool destroyed =
+            box.rect.top() > level_.worldSize().height() + 120.0;
+
+        if (!destroyed) {
+            for (const QRectF &spike : level_.spikes()) {
+                if (box.rect.intersects(spike)) {
+                    destroyed = true;
+                    break;
+                }
+            }
+        }
+
+        if (destroyed) {
+            box.alive = false;
+            collisionChanged = true;
+            explode(box.rect.center(), QColor(120, 125, 130));
+            message_ = "Push box destroyed";
+            messageTime_ = 0.8;
+        }
+    }
+
+    if (collisionChanged) {
+        rebuildCollision();
+    }
+}
+
 void World::setInput(bool left, bool right, bool up, bool down)
 {
+    inputLeft_ = left;
+    inputRight_ = right;
+
     player_.setLeft(left);
     player_.setRight(right);
     player_.setUp(up);
@@ -623,9 +1078,10 @@ void World::interact()
             switchObject.active = true;
             for (auto &door : doors_) {
                 if (door.key == switchObject.key) {
-                    door.open = true;
+                    door.latchedOpen = true;
                 }
             }
+            refreshDoorStates();
             message_ = "Switch activated";
             messageTime_ = 1.5;
             rebuildCollision();
@@ -713,6 +1169,31 @@ void World::applyExplosion(const ExplosionEvent &event)
         }
     }
 
+    for (auto &box : pushBoxes_) {
+        if (!box.alive || !inside(box.rect.center())) {
+            continue;
+        }
+
+        QVector2D impulse(
+            box.rect.center() - event.center);
+
+        if (impulse.lengthSquared() < 1.0f) {
+            impulse = QVector2D(1.0f, -0.4f);
+        } else {
+            impulse.normalize();
+        }
+
+        const double distance =
+            QLineF(event.center, box.rect.center()).length();
+        const double strength =
+            std::max(0.2, 1.0 - distance / event.radius);
+
+        box.velocity += impulse
+            * static_cast<float>(420.0 * strength);
+        box.velocity.setY(
+            std::min(box.velocity.y(), -180.0f));
+    }
+
     for (int ring = 0; ring < 4; ++ring) {
         const QColor color =
             ring == 0 ? QColor(255, 245, 150)
@@ -785,6 +1266,14 @@ void World::draw(QPainter &painter, double cameraX) const
 
     for (const auto &platform : moving_) {
         drawMovingPlatform(painter, platform.rect.translated(-cameraX, 0));
+    }
+
+    for (const JumpPad &pad : jumpPads_) {
+        pad.draw(painter, cameraX);
+    }
+
+    for (const PressurePlate &plate : pressurePlates_) {
+        plate.draw(painter, cameraX);
     }
 
     for (const auto &spike : level_.spikes()) {
@@ -945,6 +1434,39 @@ void World::draw(QPainter &painter, double cameraX) const
         painter.setBrush(QColor(235, 70, 65));
         painter.setPen(QPen(QColor(255, 225, 180), 2));
         painter.drawPolygon(flag);
+    }
+
+    const QColor boxBody(105, 115, 125);
+    const QColor boxEdge(48, 55, 63);
+    const QColor boxHighlight(175, 188, 198);
+
+    for (const auto &box : pushBoxes_) {
+        if (!box.alive) {
+            continue;
+        }
+
+        const QRectF rect =
+            box.rect.translated(-cameraX, 0);
+
+        painter.setBrush(boxBody);
+        painter.setPen(QPen(boxEdge, 3));
+        painter.drawRoundedRect(rect, 4, 4);
+
+        painter.setPen(QPen(boxHighlight, 3));
+        painter.drawLine(
+            rect.topLeft() + QPointF(7, 7),
+            rect.topRight() + QPointF(-7, 7));
+
+        painter.setPen(QPen(boxEdge, 3));
+        painter.drawLine(
+            rect.topLeft() + QPointF(8, 8),
+            rect.bottomRight() - QPointF(8, 8));
+        painter.drawLine(
+            rect.topRight() + QPointF(-8, 8),
+            rect.bottomLeft() + QPointF(8, -8));
+
+        painter.setPen(QPen(QColor(235, 210, 90), 2));
+        painter.drawText(rect, Qt::AlignCenter, "PUSH");
     }
 
     const QColor barrelRed(165, 42, 35);

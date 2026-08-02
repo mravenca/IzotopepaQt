@@ -2,6 +2,9 @@
 
 #include "entities.h"
 #include "level.h"
+#include "jumppad.h"
+#include "pressureplate.h"
+#include "worldevent.h"
 
 #include <QPointF>
 #include <QRectF>
@@ -34,6 +37,8 @@ struct Door {
     QString key;
     QRectF rect;
     bool open = false;
+    bool latchedOpen = false;
+    bool signalActive = false;
 };
 
 struct SwitchObj {
@@ -63,10 +68,21 @@ struct Barrel {
     bool alive = true;
 };
 
+struct PushBox {
+    QRectF rect;
+    QVector2D velocity;
+    bool alive = true;
+};
+
 struct ExplosionEvent {
     QPointF center;
     double radius = 150;
     int damage = 3;
+};
+
+struct JumpPadActivation {
+    bool player = false;
+    QVector<int> pushBoxes;
 };
 
 class World {
@@ -102,6 +118,13 @@ private:
     void explode(QPointF position, QColor color);
     void applyExplosion(const ExplosionEvent &event);
     void destroyCrate(Crate &crate);
+    void updatePushBoxes(double dt);
+    void updateJumpPads(double dt);
+    void updatePressurePlates(double dt);
+    void processWorldEvents();
+    void refreshDoorStates();
+    void launchFromPad(int padIndex);
+    QVector<QRectF> pushBoxBlockers(int excludedIndex) const;
     void checkpoint();
     void beep() const;
 
@@ -120,6 +143,11 @@ private:
     QVector<KeyObj> keys_;
     QVector<Crate> crates_;
     QVector<Barrel> barrels_;
+    QVector<PushBox> pushBoxes_;
+    QVector<JumpPad> jumpPads_;
+    QVector<PressurePlate> pressurePlates_;
+    WorldEventQueue worldEvents_;
+    QVector<JumpPadActivation> jumpPadActivations_;
     QVector<Projectile> projectiles_;
     QVector<Particle> particles_;
     QVector<QRectF> collision_;
@@ -130,6 +158,8 @@ private:
     bool completed_ = false;
     bool gameOver_ = false;
     bool sound_ = true;
+    bool inputLeft_ = false;
+    bool inputRight_ = false;
 
     QString message_;
     double messageTime_ = 0;
