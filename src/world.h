@@ -2,6 +2,7 @@
 
 #include "entities.h"
 #include "level.h"
+#include "jumppad.h"
 
 #include <QPointF>
 #include <QRectF>
@@ -75,6 +76,11 @@ struct ExplosionEvent {
     int damage = 3;
 };
 
+struct JumpPadActivation {
+    bool player = false;
+    QVector<int> pushBoxes;
+};
+
 class World {
 public:
     World(const SpriteSheet *playerSheet, const SpriteSheet *enemySheet);
@@ -109,6 +115,8 @@ private:
     void applyExplosion(const ExplosionEvent &event);
     void destroyCrate(Crate &crate);
     void updatePushBoxes(double dt);
+    void updateJumpPads(double dt);
+    void launchFromPad(int padIndex);
     QVector<QRectF> pushBoxBlockers(int excludedIndex) const;
     void checkpoint();
     void beep() const;
@@ -129,6 +137,8 @@ private:
     QVector<Crate> crates_;
     QVector<Barrel> barrels_;
     QVector<PushBox> pushBoxes_;
+    QVector<JumpPad> jumpPads_;
+    QVector<JumpPadActivation> jumpPadActivations_;
     QVector<Projectile> projectiles_;
     QVector<Particle> particles_;
     QVector<QRectF> collision_;

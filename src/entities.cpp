@@ -170,6 +170,20 @@ void Player::stopJump()
     }
 }
 
+void Player::launch(const QVector2D &impulse)
+{
+    climbing_ = false;
+    onGround_ = false;
+    coyoteTime_ = 0.0;
+    jumpBuffer_ = 0.0;
+    vel_ = impulse;
+}
+
+QVector2D Player::velocity() const
+{
+    return vel_;
+}
+
 bool Player::carryBy(
     const QPointF &delta,
     const QVector<QRectF> &blockers)

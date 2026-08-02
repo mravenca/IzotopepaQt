@@ -200,6 +200,22 @@ bool World::loadLevel(int index)
         };
     }
 
+    jumpPads_.clear();
+    jumpPadActivations_.clear();
+    for (const auto &spawn : level_.jumpPads()) {
+        jumpPads_ << JumpPad(
+            QRectF(
+                spawn.position.x(),
+                spawn.position.y(),
+                spawn.width,
+                spawn.height),
+            spawn.strength,
+            spawn.horizontalImpulse,
+            spawn.launchDelay,
+            spawn.cooldown);
+        jumpPadActivations_ << JumpPadActivation {};
+    }
+
     projectiles_.clear();
     particles_.clear();
     completed_ = false;
@@ -348,6 +364,7 @@ void World::update(double dt)
     updatePushBoxes(dt);
     rebuildCollision();
     player_.update(dt, collision_, level_.ladders(), level_.worldSize().width());
+    updateJumpPads(dt);
     for (auto &enemy : enemies_) {
         enemy.update(
             dt,
@@ -636,6 +653,141 @@ QVector<QRectF> World::pushBoxBlockers(int excludedIndex) const
     }
 
     return blockers;
+}
+
+void World::updateJumpPads(double dt)
+{
+    for (int index = 0; index < jumpPads_.size(); ++index) {
+        JumpPad &pad = jumpPads_[index];
+        JumpPadActivation &activation = jumpPadActivations_[index];
+
+        pad.update(dt);
+
+        const QRectF trigger = pad.triggerZone();
+        const QRectF playerFeet(
+            player_.rect().left() + 5.0,
+            player_.rect().bottom() - 5.0,
+            player_.rect().width() - 10.0,
+            10.0);
+
+        if (!activation.player
+            && player_.velocity().y() >= -10.0f
+            && playerFeet.intersects(trigger)) {
+            const bool compressionCycleActive =
+                !activation.pushBoxes.isEmpty();
+
+            if (pad.requestTrigger() || compressionCycleActive) {
+                activation.player = true;
+            }
+        }
+
+        for (int boxIndex = 0; boxIndex < pushBoxes_.size(); ++boxIndex) {
+            PushBox &box = pushBoxes_[boxIndex];
+
+            if (!box.alive
+                || activation.pushBoxes.contains(boxIndex)
+                || box.velocity.y() < -10.0f) {
+                continue;
+            }
+
+            const QRectF boxFeet(
+                box.rect.left() + 4.0,
+                box.rect.bottom() - 5.0,
+                box.rect.width() - 8.0,
+                10.0);
+
+            if (!boxFeet.intersects(trigger)) {
+                continue;
+            }
+
+            const bool compressionCycleActive =
+                activation.player || !activation.pushBoxes.isEmpty();
+
+            if (pad.requestTrigger() || compressionCycleActive) {
+                activation.pushBoxes << boxIndex;
+            }
+        }
+
+        if (pad.consumeLaunch()) {
+            launchFromPad(index);
+        }
+    }
+}
+
+void World::launchFromPad(int padIndex)
+{
+    if (padIndex < 0 || padIndex >= jumpPads_.size()) {
+        return;
+    }
+
+    JumpPad &pad = jumpPads_[padIndex];
+    JumpPadActivation &activation = jumpPadActivations_[padIndex];
+    bool launched = false;
+
+    if (activation.player) {
+        const QRectF expandedTrigger =
+            pad.triggerZone().adjusted(-14.0, -18.0, 14.0, 12.0);
+
+        if (player_.rect().intersects(expandedTrigger)) {
+            const float launchX = qFuzzyIsNull(pad.horizontalImpulse())
+                ? player_.velocity().x()
+                : static_cast<float>(pad.horizontalImpulse());
+            player_.launch(QVector2D(
+                launchX,
+                static_cast<float>(-pad.strength())));
+            launched = true;
+        }
+    }
+
+    for (const int boxIndex : activation.pushBoxes) {
+        if (boxIndex < 0 || boxIndex >= pushBoxes_.size()) {
+            continue;
+        }
+
+        PushBox &box = pushBoxes_[boxIndex];
+        if (!box.alive) {
+            continue;
+        }
+
+        const QRectF expandedTrigger =
+            pad.triggerZone().adjusted(-12.0, -18.0, 12.0, 12.0);
+
+        if (!box.rect.intersects(expandedTrigger)) {
+            continue;
+        }
+
+        const float launchX = qFuzzyIsNull(pad.horizontalImpulse())
+            ? box.velocity.x()
+            : static_cast<float>(pad.horizontalImpulse());
+        box.velocity = QVector2D(
+            launchX,
+            static_cast<float>(-pad.strength()));
+        launched = true;
+    }
+
+    activation = JumpPadActivation {};
+
+    if (!launched) {
+        return;
+    }
+
+    const QPointF burstCenter(
+        pad.rect().center().x(),
+        pad.rect().top());
+
+    for (int burst = 0; burst < 3; ++burst) {
+        explode(
+            burstCenter + QPointF((burst - 1) * 13.0, -3.0),
+            burst == 1
+                ? QColor(255, 245, 120)
+                : QColor(255, 150, 35));
+    }
+
+    shakeTime_ = std::max(shakeTime_, 0.16);
+    shakeStrength_ = std::max(shakeStrength_, 4.0);
+    message_ = "Jump pad!";
+    messageTime_ = 0.7;
+    beep();
 }
 
 void World::updatePushBoxes(double dt)
@@ -991,6 +1143,10 @@ void World::draw(QPainter &painter, double cameraX) const
 
     for (const auto &platform : moving_) {
         drawMovingPlatform(painter, platform.rect.translated(-cameraX, 0));
+    }
+
+    for (const JumpPad &pad : jumpPads_) {
+        pad.draw(painter, cameraX);
     }
 
     for (const auto &spike : level_.spikes()) {

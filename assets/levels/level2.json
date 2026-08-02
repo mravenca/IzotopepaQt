@@ -400,5 +400,27 @@
       "width": 56,
       "height": 48
     }
+  ],
+  "jumpPads": [
+    {
+      "x": 430,
+      "y": 550,
+      "width": 72,
+      "height": 20,
+      "strength": 920,
+      "horizontal": 0,
+      "delay": 0.08,
+      "cooldown": 0.25
+    },
+    {
+      "x": 1900,
+      "y": 550,
+      "width": 72,
+      "height": 20,
+      "strength": 1100,
+      "horizontal": -100,
+      "delay": 0.07,
+      "cooldown": 0.3
+    }
   ]
 }

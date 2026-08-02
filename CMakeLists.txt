@@ -21,6 +21,8 @@ add_executable(IzotopepaQtGameV3
     src/entities.h
     src/level.cpp
     src/level.h
+    src/jumppad.cpp
+    src/jumppad.h
     src/support.cpp
     src/support.h
     resources.qrc
