@@ -10,8 +10,10 @@ struct Door{QString key;QRectF rect;bool open=false;};
 struct SwitchObj{QString key;QRectF rect;bool active=false;};
 struct KeyObj{QString key;QRectF rect;bool taken=false;};
 struct Crate{QRectF rect;QString drop="none";int hp=1;bool alive=true;};
+struct Barrel{QRectF rect;double radius=150;int damage=3;double fuse=-1;bool alive=true;};
+struct ExplosionEvent{QPointF center;double radius=150;int damage=3;};
 class World{
 public: World(const SpriteSheet*,const SpriteSheet*);bool loadLevel(int);void resetFromCheckpoint();void update(double);void draw(QPainter&,double)const;Player&player();const Player&player()const;double width()const;QString levelName()const;int levelIndex()const;bool completed()const;bool gameOver()const;void setInput(bool,bool,bool,bool);void jump();void stopJump();void shoot();void interact();void toggleSound();bool soundEnabled()const;QString message()const;
-private:void rebuildCollision();void explode(QPointF,QColor);void checkpoint();void beep()const;
- const SpriteSheet*playerSheet_;const SpriteSheet*enemySheet_;Level level_;Player player_;QVector<Enemy>enemies_;QVector<MovingPlatform>moving_;QVector<Coin>coins_;QVector<Pickup>pickups_;QVector<Door>doors_;QVector<SwitchObj>switches_;QVector<KeyObj>keys_;QVector<Crate>crates_;QVector<Projectile>projectiles_;QVector<Particle>particles_;QVector<QRectF>collision_;QPointF respawn_;int levelIndex_=0;bool completed_=false,gameOver_=false,sound_=true;QString message_;double messageTime_=0;double shakeTime_=0,shakeStrength_=0;double animationTime_=0;
+private:void rebuildCollision();void explode(QPointF,QColor);void applyExplosion(const ExplosionEvent&);void destroyCrate(Crate&);void checkpoint();void beep()const;
+ const SpriteSheet*playerSheet_;const SpriteSheet*enemySheet_;Level level_;Player player_;QVector<Enemy>enemies_;QVector<MovingPlatform>moving_;QVector<Coin>coins_;QVector<Pickup>pickups_;QVector<Door>doors_;QVector<SwitchObj>switches_;QVector<KeyObj>keys_;QVector<Crate>crates_;QVector<Barrel>barrels_;QVector<Projectile>projectiles_;QVector<Particle>particles_;QVector<QRectF>collision_;QPointF respawn_;int levelIndex_=0;bool completed_=false,gameOver_=false,sound_=true;QString message_;double messageTime_=0;double shakeTime_=0,shakeStrength_=0;double animationTime_=0;
 };

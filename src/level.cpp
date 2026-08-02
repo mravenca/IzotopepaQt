@@ -98,6 +98,7 @@ bool Level::load(const QString &requestedPath)
     switches_.clear();
     keys_.clear();
     crates_.clear();
+    barrels_.clear();
     checkpoint_ = QPointF(-1, -1);
 
     const QJsonObject root = document.object();
@@ -203,6 +204,17 @@ bool Level::load(const QString &requestedPath)
         };
     }
 
+    for (const QJsonValue &value : root.value("barrels").toArray()) {
+        const QJsonObject object = value.toObject();
+        barrels_ << BarrelSpawn {
+            QPointF(
+                object.value("x").toDouble(),
+                object.value("y").toDouble()),
+            std::max(50.0, object.value("radius").toDouble(150.0)),
+            std::max(1, object.value("damage").toInt(3))
+        };
+    }
+
     if (root.contains("checkpoint")) {
         checkpoint_ =
             pointFromArray(root.value("checkpoint"));
@@ -233,5 +245,6 @@ const QVector<DoorSpawn> &Level::doors() const { return doors_; }
 const QVector<SwitchSpawn> &Level::switches() const { return switches_; }
 const QVector<KeySpawn> &Level::keys() const { return keys_; }
 const QVector<CrateSpawn> &Level::crates() const { return crates_; }
+const QVector<BarrelSpawn> &Level::barrels() const { return barrels_; }
 QPointF Level::checkpoint() const { return checkpoint_; }
 QRectF Level::goal() const { return goal_; }

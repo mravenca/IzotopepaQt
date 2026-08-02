@@ -175,6 +175,17 @@ bool World::loadLevel(int index)
         };
     }
 
+    barrels_.clear();
+    for (const auto &spawn : level_.barrels()) {
+        barrels_ << Barrel {
+            QRectF(spawn.position.x(), spawn.position.y(), 40, 52),
+            spawn.radius,
+            spawn.damage,
+            -1.0,
+            true
+        };
+    }
+
     projectiles_.clear();
     particles_.clear();
     completed_ = false;
@@ -208,6 +219,11 @@ void World::rebuildCollision()
     for (const auto &crate : crates_) {
         if (crate.alive) {
             collision_ << crate.rect;
+        }
+    }
+    for (const auto &barrel : barrels_) {
+        if (barrel.alive) {
+            collision_ << barrel.rect;
         }
     }
 }
@@ -286,6 +302,30 @@ void World::update(double dt)
             }
         }
     }
+    for (int barrelIndex = 0;
+         barrelIndex < barrels_.size();
+         ++barrelIndex) {
+        Barrel &barrel = barrels_[barrelIndex];
+
+        if (!barrel.alive || barrel.fuse < 0.0) {
+            continue;
+        }
+
+        barrel.fuse -= dt;
+
+        if (barrel.fuse <= 0.0) {
+            const ExplosionEvent event {
+                barrel.rect.center(),
+                barrel.radius,
+                barrel.damage
+            };
+
+            barrel.alive = false;
+            rebuildCollision();
+            applyExplosion(event);
+        }
+    }
+
     rebuildCollision();
     player_.update(dt, collision_, level_.ladders(), level_.worldSize().width());
     for (auto &enemy : enemies_) {
@@ -373,6 +413,35 @@ void World::update(double dt)
         projectile.life -= dt;
         projectile.rect.translate(projectile.velocity.x() * dt,
                                   projectile.velocity.y() * dt);
+
+        bool hitBarrel = false;
+
+        if (!projectile.hostile) {
+            for (auto &barrel : barrels_) {
+                if (!barrel.alive
+                    || !projectile.rect.intersects(barrel.rect)) {
+                    continue;
+                }
+
+                projectile.alive = false;
+                hitBarrel = true;
+
+                if (barrel.fuse < 0.0) {
+                    barrel.fuse = 0.12;
+                    message_ = "Barrel fuse lit";
+                    messageTime_ = 0.7;
+                }
+
+                explode(
+                    projectile.rect.center(),
+                    QColor(255, 170, 35));
+                break;
+            }
+        }
+
+        if (hitBarrel) {
+            continue;
+        }
 
         bool hitCrate = false;
 
@@ -563,6 +632,110 @@ void World::interact()
             beep();
         }
     }
+}
+
+void World::destroyCrate(Crate &crate)
+{
+    if (!crate.alive) {
+        return;
+    }
+
+    crate.alive = false;
+    player_.addScore(25);
+
+    for (int fragment = 0; fragment < 3; ++fragment) {
+        explode(
+            crate.rect.center()
+                + QPointF((fragment - 1) * 10, -fragment * 4),
+            QColor(145, 85, 38));
+    }
+
+    const QPointF dropPosition(
+        crate.rect.center().x() - 12,
+        crate.rect.top() - 28);
+
+    if (crate.drop == "coin") {
+        coins_ << Coin {
+            QRectF(dropPosition.x(), dropPosition.y(), 24, 24),
+            false,
+            dropPosition.x() * .01
+        };
+    } else if (crate.drop == "health"
+               || crate.drop == "ammo") {
+        pickups_ << Pickup {
+            crate.drop,
+            QRectF(dropPosition.x(), dropPosition.y(), 28, 28),
+            false
+        };
+    }
+}
+
+void World::applyExplosion(const ExplosionEvent &event)
+{
+    const auto inside =
+        [&event](const QPointF &point) {
+            const double dx = point.x() - event.center.x();
+            const double dy = point.y() - event.center.y();
+            return dx * dx + dy * dy <= event.radius * event.radius;
+        };
+
+    if (inside(player_.rect().center())) {
+        player_.damage(event.center.x());
+    }
+
+    for (auto &enemy : enemies_) {
+        if (!enemy.alive() || !inside(enemy.rect().center())) {
+            continue;
+        }
+
+        const bool wasAlive = enemy.alive();
+        enemy.damage(event.damage, event.center.x());
+
+        if (wasAlive && !enemy.alive()) {
+            player_.addScore(enemy.reward());
+        }
+    }
+
+    bool collisionChanged = false;
+
+    for (auto &crate : crates_) {
+        if (crate.alive && inside(crate.rect.center())) {
+            destroyCrate(crate);
+            collisionChanged = true;
+        }
+    }
+
+    for (auto &barrel : barrels_) {
+        if (barrel.alive
+            && barrel.fuse < 0.0
+            && inside(barrel.rect.center())) {
+            barrel.fuse = 0.10;
+        }
+    }
+
+    for (int ring = 0; ring < 4; ++ring) {
+        const QColor color =
+            ring == 0 ? QColor(255, 245, 150)
+            : ring == 1 ? QColor(255, 165, 35)
+            : ring == 2 ? QColor(220, 65, 20)
+                        : QColor(85, 75, 70);
+
+        explode(
+            event.center
+                + QPointF((ring - 1.5) * 7.0, -ring * 3.0),
+            color);
+    }
+
+    shakeTime_ = std::max(shakeTime_, 0.42);
+    shakeStrength_ = std::max(shakeStrength_, 12.0);
+    message_ = "Explosion!";
+    messageTime_ = 0.8;
+
+    if (collisionChanged) {
+        rebuildCollision();
+    }
+
+    beep();
 }
 
 void World::explode(QPointF at, QColor color)
@@ -772,6 +945,52 @@ void World::draw(QPainter &painter, double cameraX) const
         painter.setBrush(QColor(235, 70, 65));
         painter.setPen(QPen(QColor(255, 225, 180), 2));
         painter.drawPolygon(flag);
+    }
+
+    const QColor barrelRed(165, 42, 35);
+    const QColor barrelDark(75, 25, 23);
+    const QColor barrelBand(215, 180, 95);
+
+    for (const auto &barrel : barrels_) {
+        if (!barrel.alive) {
+            continue;
+        }
+
+        const QRectF rect =
+            barrel.rect.translated(-cameraX, 0);
+
+        painter.setPen(QPen(barrelDark, 3));
+        painter.setBrush(barrelRed);
+        painter.drawRoundedRect(rect, 8, 8);
+
+        painter.setBrush(barrelBand);
+        painter.setPen(Qt::NoPen);
+        painter.drawRect(
+            QRectF(rect.left(), rect.top() + 8,
+                   rect.width(), 5));
+        painter.drawRect(
+            QRectF(rect.left(), rect.bottom() - 13,
+                   rect.width(), 5));
+
+        painter.setPen(QPen(QColor(255, 230, 120), 3));
+        painter.drawLine(
+            rect.center() + QPointF(-7, -5),
+            rect.center() + QPointF(7, 5));
+        painter.drawLine(
+            rect.center() + QPointF(7, -5),
+            rect.center() + QPointF(-7, 5));
+
+        if (barrel.fuse >= 0.0) {
+            const double pulse =
+                4.0 + qSin(animationTime_ * 28.0) * 2.0;
+
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(QColor(255, 225, 70, 220));
+            painter.drawEllipse(
+                rect.topRight() + QPointF(-5, 3),
+                pulse,
+                pulse);
+        }
     }
 
     const QColor crateWood(154, 91, 42);
