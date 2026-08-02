@@ -149,7 +149,7 @@ bool World::loadLevel(int index)
 
     doors_.clear();
     for (const auto &spawn : level_.doors()) {
-        doors_ << Door{spawn.key, spawn.rect, false};
+        doors_ << Door{spawn.key, spawn.rect, false, false, false};
     }
 
     switches_.clear();
@@ -214,6 +214,19 @@ bool World::loadLevel(int index)
             spawn.launchDelay,
             spawn.cooldown);
         jumpPadActivations_ << JumpPadActivation {};
+    }
+
+    pressurePlates_.clear();
+    worldEvents_.clear();
+    for (const auto &spawn : level_.pressurePlates()) {
+        pressurePlates_ << PressurePlate(
+            QRectF(
+                spawn.position.x(),
+                spawn.position.y(),
+                spawn.width,
+                spawn.height),
+            spawn.target,
+            spawn.requiredWeight);
     }
 
     projectiles_.clear();
@@ -365,6 +378,9 @@ void World::update(double dt)
     rebuildCollision();
     player_.update(dt, collision_, level_.ladders(), level_.worldSize().width());
     updateJumpPads(dt);
+    updatePressurePlates(dt);
+    processWorldEvents();
+    refreshDoorStates();
     for (auto &enemy : enemies_) {
         enemy.update(
             dt,
@@ -426,13 +442,13 @@ void World::update(double dt)
     }
 
     for (auto &door : doors_) {
-        if (!door.open && player_.hasKey(door.key)
+        if (!door.latchedOpen && player_.hasKey(door.key)
             && player_.rect().adjusted(-8, -8, 8, 8).intersects(door.rect)) {
-            door.open = true;
+            door.latchedOpen = true;
+            refreshDoorStates();
             message_ = door.key + " door unlocked";
             messageTime_ = 2;
             beep();
-            rebuildCollision();
         }
     }
 
@@ -653,6 +669,112 @@ QVector<QRectF> World::pushBoxBlockers(int excludedIndex) const
     }
 
     return blockers;
+}
+
+void World::updatePressurePlates(double dt)
+{
+    for (PressurePlate &plate : pressurePlates_) {
+        const QRectF trigger = plate.triggerZone();
+        double weight = 0.0;
+
+        const QRectF playerFeet(
+            player_.rect().left() + 5.0,
+            player_.rect().bottom() - 5.0,
+            player_.rect().width() - 10.0,
+            10.0);
+
+        if (playerFeet.intersects(trigger)) {
+            weight += 1.0;
+        }
+
+        for (const PushBox &box : pushBoxes_) {
+            if (!box.alive) {
+                continue;
+            }
+
+            const QRectF boxFeet(
+                box.rect.left() + 4.0,
+                box.rect.bottom() - 5.0,
+                box.rect.width() - 8.0,
+                10.0);
+
+            if (boxFeet.intersects(trigger)) {
+                weight += 1.0;
+            }
+        }
+
+        for (const Crate &crate : crates_) {
+            if (crate.alive
+                && crate.rect.adjusted(4.0, 35.0, -4.0, 5.0)
+                       .intersects(trigger)) {
+                weight += 1.0;
+            }
+        }
+
+        for (const Barrel &barrel : barrels_) {
+            if (barrel.alive
+                && barrel.rect.adjusted(4.0, 38.0, -4.0, 5.0)
+                       .intersects(trigger)) {
+                weight += 1.0;
+            }
+        }
+
+        plate.update(weight, dt, worldEvents_);
+    }
+}
+
+void World::processWorldEvents()
+{
+    for (const WorldEvent &event : worldEvents_.takeAll()) {
+        if (event.type != WorldEventType::SetSignal) {
+            continue;
+        }
+
+        for (Door &door : doors_) {
+            if (door.key == event.channel) {
+                door.signalActive = event.active;
+            }
+        }
+
+        message_ = event.active
+            ? event.channel + " pressure plate activated"
+            : event.channel + " pressure plate released";
+        messageTime_ = 1.0;
+        beep();
+    }
+}
+
+void World::refreshDoorStates()
+{
+    bool collisionChanged = false;
+
+    for (Door &door : doors_) {
+        bool nextOpen = door.latchedOpen || door.signalActive;
+
+        if (!nextOpen && door.open) {
+            bool obstructed = player_.rect().intersects(door.rect);
+
+            for (const PushBox &box : pushBoxes_) {
+                if (box.alive && box.rect.intersects(door.rect)) {
+                    obstructed = true;
+                    break;
+                }
+            }
+
+            if (obstructed) {
+                nextOpen = true;
+            }
+        }
+
+        if (door.open != nextOpen) {
+            door.open = nextOpen;
+            collisionChanged = true;
+        }
+    }
+
+    if (collisionChanged) {
+        rebuildCollision();
+    }
 }
 
 void World::updateJumpPads(double dt)
@@ -956,9 +1078,10 @@ void World::interact()
             switchObject.active = true;
             for (auto &door : doors_) {
                 if (door.key == switchObject.key) {
-                    door.open = true;
+                    door.latchedOpen = true;
                 }
             }
+            refreshDoorStates();
             message_ = "Switch activated";
             messageTime_ = 1.5;
             rebuildCollision();
@@ -1147,6 +1270,10 @@ void World::draw(QPainter &painter, double cameraX) const
 
     for (const JumpPad &pad : jumpPads_) {
         pad.draw(painter, cameraX);
+    }
+
+    for (const PressurePlate &plate : pressurePlates_) {
+        plate.draw(painter, cameraX);
     }
 
     for (const auto &spike : level_.spikes()) {

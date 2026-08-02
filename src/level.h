@@ -59,6 +59,14 @@ struct PushBoxSpawn {
     double height = 48;
 };
 
+struct PressurePlateSpawn {
+    QPointF position;
+    double width = 72;
+    double height = 18;
+    QString target;
+    double requiredWeight = 1.0;
+};
+
 struct JumpPadSpawn {
     QPointF position;
     double width = 72;
@@ -90,6 +98,7 @@ public:
     const QVector<BarrelSpawn> &barrels() const;
     const QVector<PushBoxSpawn> &pushBoxes() const;
     const QVector<JumpPadSpawn> &jumpPads() const;
+    const QVector<PressurePlateSpawn> &pressurePlates() const;
     const QVector<KeySpawn> &keys() const;
 
     QPointF checkpoint() const;
@@ -115,6 +124,7 @@ private:
     QVector<BarrelSpawn> barrels_;
     QVector<PushBoxSpawn> pushBoxes_;
     QVector<JumpPadSpawn> jumpPads_;
+    QVector<PressurePlateSpawn> pressurePlates_;
 
     QRectF goal_ {880, 470, 55, 100};
 };

@@ -323,5 +323,15 @@
       "delay": 0.06,
       "cooldown": 0.3
     }
+  ],
+  "pressurePlates": [
+    {
+      "x": 2030,
+      "y": 552,
+      "width": 84,
+      "height": 18,
+      "target": "bronze",
+      "requiredWeight": 1
+    }
   ]
 }

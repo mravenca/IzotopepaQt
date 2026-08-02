@@ -3,6 +3,8 @@
 #include "entities.h"
 #include "level.h"
 #include "jumppad.h"
+#include "pressureplate.h"
+#include "worldevent.h"
 
 #include <QPointF>
 #include <QRectF>
@@ -35,6 +37,8 @@ struct Door {
     QString key;
     QRectF rect;
     bool open = false;
+    bool latchedOpen = false;
+    bool signalActive = false;
 };
 
 struct SwitchObj {
@@ -116,6 +120,9 @@ private:
     void destroyCrate(Crate &crate);
     void updatePushBoxes(double dt);
     void updateJumpPads(double dt);
+    void updatePressurePlates(double dt);
+    void processWorldEvents();
+    void refreshDoorStates();
     void launchFromPad(int padIndex);
     QVector<QRectF> pushBoxBlockers(int excludedIndex) const;
     void checkpoint();
@@ -138,6 +145,8 @@ private:
     QVector<Barrel> barrels_;
     QVector<PushBox> pushBoxes_;
     QVector<JumpPad> jumpPads_;
+    QVector<PressurePlate> pressurePlates_;
+    WorldEventQueue worldEvents_;
     QVector<JumpPadActivation> jumpPadActivations_;
     QVector<Projectile> projectiles_;
     QVector<Particle> particles_;
