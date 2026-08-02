@@ -386,5 +386,19 @@
       "radius": 175,
       "damage": 4
     }
+  ],
+  "pushableBoxes": [
+    {
+      "x": 1320,
+      "y": 522,
+      "width": 48,
+      "height": 48
+    },
+    {
+      "x": 2740,
+      "y": 522,
+      "width": 48,
+      "height": 48
+    }
   ]
 }

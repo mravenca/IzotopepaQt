@@ -53,6 +53,12 @@ struct BarrelSpawn {
     int damage = 3;
 };
 
+struct PushBoxSpawn {
+    QPointF position;
+    double width = 48;
+    double height = 48;
+};
+
 class Level {
 public:
     bool load(const QString &fileName);
@@ -72,6 +78,7 @@ public:
     const QVector<SwitchSpawn> &switches() const;
     const QVector<CrateSpawn> &crates() const;
     const QVector<BarrelSpawn> &barrels() const;
+    const QVector<PushBoxSpawn> &pushBoxes() const;
     const QVector<KeySpawn> &keys() const;
 
     QPointF checkpoint() const;
@@ -95,6 +102,7 @@ private:
     QVector<KeySpawn> keys_;
     QVector<CrateSpawn> crates_;
     QVector<BarrelSpawn> barrels_;
+    QVector<PushBoxSpawn> pushBoxes_;
 
     QRectF goal_ {880, 470, 55, 100};
 };

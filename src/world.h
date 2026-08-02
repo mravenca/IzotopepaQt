@@ -63,6 +63,12 @@ struct Barrel {
     bool alive = true;
 };
 
+struct PushBox {
+    QRectF rect;
+    QVector2D velocity;
+    bool alive = true;
+};
+
 struct ExplosionEvent {
     QPointF center;
     double radius = 150;
@@ -102,6 +108,8 @@ private:
     void explode(QPointF position, QColor color);
     void applyExplosion(const ExplosionEvent &event);
     void destroyCrate(Crate &crate);
+    void updatePushBoxes(double dt);
+    QVector<QRectF> pushBoxBlockers(int excludedIndex) const;
     void checkpoint();
     void beep() const;
 
@@ -120,6 +128,7 @@ private:
     QVector<KeyObj> keys_;
     QVector<Crate> crates_;
     QVector<Barrel> barrels_;
+    QVector<PushBox> pushBoxes_;
     QVector<Projectile> projectiles_;
     QVector<Particle> particles_;
     QVector<QRectF> collision_;
@@ -130,6 +139,8 @@ private:
     bool completed_ = false;
     bool gameOver_ = false;
     bool sound_ = true;
+    bool inputLeft_ = false;
+    bool inputRight_ = false;
 
     QString message_;
     double messageTime_ = 0;

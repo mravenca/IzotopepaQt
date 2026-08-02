@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QPainter>
 #include <QLinearGradient>
+#include <QLineF>
 #include <QRadialGradient>
 #include <QRandomGenerator>
 #include <QSettings>
@@ -186,6 +187,19 @@ bool World::loadLevel(int index)
         };
     }
 
+    pushBoxes_.clear();
+    for (const auto &spawn : level_.pushBoxes()) {
+        pushBoxes_ << PushBox {
+            QRectF(
+                spawn.position.x(),
+                spawn.position.y(),
+                spawn.width,
+                spawn.height),
+            QVector2D(),
+            true
+        };
+    }
+
     projectiles_.clear();
     particles_.clear();
     completed_ = false;
@@ -224,6 +238,11 @@ void World::rebuildCollision()
     for (const auto &barrel : barrels_) {
         if (barrel.alive) {
             collision_ << barrel.rect;
+        }
+    }
+    for (const auto &box : pushBoxes_) {
+        if (box.alive) {
+            collision_ << box.rect;
         }
     }
 }
@@ -326,6 +345,7 @@ void World::update(double dt)
         }
     }
 
+    updatePushBoxes(dt);
     rebuildCollision();
     player_.update(dt, collision_, level_.ladders(), level_.worldSize().width());
     for (auto &enemy : enemies_) {
@@ -583,8 +603,169 @@ void World::update(double dt)
     }
 }
 
+QVector<QRectF> World::pushBoxBlockers(int excludedIndex) const
+{
+    QVector<QRectF> blockers = level_.platforms();
+
+    for (const auto &platform : moving_) {
+        blockers << platform.rect;
+    }
+
+    for (const auto &door : doors_) {
+        if (!door.open) {
+            blockers << door.rect;
+        }
+    }
+
+    for (const auto &crate : crates_) {
+        if (crate.alive) {
+            blockers << crate.rect;
+        }
+    }
+
+    for (const auto &barrel : barrels_) {
+        if (barrel.alive) {
+            blockers << barrel.rect;
+        }
+    }
+
+    for (int index = 0; index < pushBoxes_.size(); ++index) {
+        if (index != excludedIndex && pushBoxes_[index].alive) {
+            blockers << pushBoxes_[index].rect;
+        }
+    }
+
+    return blockers;
+}
+
+void World::updatePushBoxes(double dt)
+{
+    constexpr double kGravity = 1900.0;
+    constexpr double kPushSpeed = 135.0;
+    constexpr double kContactTolerance = 7.0;
+
+    bool collisionChanged = false;
+
+    for (int index = 0; index < pushBoxes_.size(); ++index) {
+        PushBox &box = pushBoxes_[index];
+
+        if (!box.alive) {
+            continue;
+        }
+
+        QVector<QRectF> blockers = pushBoxBlockers(index);
+
+        // Carry boxes standing on a moving platform by its per-frame delta.
+        for (const auto &platform : moving_) {
+            const QRectF previousPlatform =
+                platform.rect.translated(-platform.delta);
+            const QRectF boxFeet(
+                box.rect.left() + 4.0,
+                box.rect.bottom() - 3.0,
+                box.rect.width() - 8.0,
+                7.0);
+
+            if (!boxFeet.intersects(previousPlatform)
+                || box.rect.bottom() > previousPlatform.top() + 5.0) {
+                continue;
+            }
+
+            QRectF carried = box.rect.translated(platform.delta);
+            bool blocked = false;
+
+            for (const QRectF &blocker : blockers) {
+                if (carried.intersects(blocker)) {
+                    blocked = true;
+                    break;
+                }
+            }
+
+            if (!blocked) {
+                box.rect = carried;
+            }
+            break;
+        }
+
+        const QRectF playerRect = player_.rect();
+        const bool verticalOverlap =
+            playerRect.bottom() > box.rect.top() + 6.0
+            && playerRect.top() < box.rect.bottom() - 6.0;
+
+        const double gapOnLeft = box.rect.left() - playerRect.right();
+        const double gapOnRight = playerRect.left() - box.rect.right();
+
+        int pushDirection = 0;
+
+        if (inputRight_
+            && verticalOverlap
+            && gapOnLeft >= -2.0
+            && gapOnLeft <= kContactTolerance) {
+            pushDirection = 1;
+        } else if (inputLeft_
+                   && verticalOverlap
+                   && gapOnRight >= -2.0
+                   && gapOnRight <= kContactTolerance) {
+            pushDirection = -1;
+        }
+
+        box.velocity.setX(
+            pushDirection == 0
+                ? box.velocity.x() * 0.72f
+                : static_cast<float>(pushDirection * kPushSpeed));
+
+        if (qAbs(box.velocity.x()) < 1.0f) {
+            box.velocity.setX(0.0f);
+        }
+
+        box.velocity.setY(
+            std::min(
+                box.velocity.y()
+                    + static_cast<float>(kGravity * dt),
+                950.0f));
+
+        moveAndCollide(box.rect, box.velocity, dt, blockers);
+
+        if (box.rect.left() < 0.0) {
+            box.rect.moveLeft(0.0);
+            box.velocity.setX(0.0f);
+        }
+
+        if (box.rect.right() > level_.worldSize().width()) {
+            box.rect.moveRight(level_.worldSize().width());
+            box.velocity.setX(0.0f);
+        }
+
+        bool destroyed =
+            box.rect.top() > level_.worldSize().height() + 120.0;
+
+        if (!destroyed) {
+            for (const QRectF &spike : level_.spikes()) {
+                if (box.rect.intersects(spike)) {
+                    destroyed = true;
+                    break;
+                }
+            }
+        }
+
+        if (destroyed) {
+            box.alive = false;
+            collisionChanged = true;
+            explode(box.rect.center(), QColor(120, 125, 130));
+            message_ = "Push box destroyed";
+            messageTime_ = 0.8;
+        }
+    }
+
+    if (collisionChanged) {
+        rebuildCollision();
+    }
+}
+
 void World::setInput(bool left, bool right, bool up, bool down)
 {
+    inputLeft_ = left;
+    inputRight_ = right;
+
     player_.setLeft(left);
     player_.setRight(right);
     player_.setUp(up);
@@ -711,6 +892,31 @@ void World::applyExplosion(const ExplosionEvent &event)
             && inside(barrel.rect.center())) {
             barrel.fuse = 0.10;
         }
+    }
+
+    for (auto &box : pushBoxes_) {
+        if (!box.alive || !inside(box.rect.center())) {
+            continue;
+        }
+
+        QVector2D impulse(
+            box.rect.center() - event.center);
+
+        if (impulse.lengthSquared() < 1.0f) {
+            impulse = QVector2D(1.0f, -0.4f);
+        } else {
+            impulse.normalize();
+        }
+
+        const double distance =
+            QLineF(event.center, box.rect.center()).length();
+        const double strength =
+            std::max(0.2, 1.0 - distance / event.radius);
+
+        box.velocity += impulse
+            * static_cast<float>(420.0 * strength);
+        box.velocity.setY(
+            std::min(box.velocity.y(), -180.0f));
     }
 
     for (int ring = 0; ring < 4; ++ring) {
@@ -945,6 +1151,39 @@ void World::draw(QPainter &painter, double cameraX) const
         painter.setBrush(QColor(235, 70, 65));
         painter.setPen(QPen(QColor(255, 225, 180), 2));
         painter.drawPolygon(flag);
+    }
+
+    const QColor boxBody(105, 115, 125);
+    const QColor boxEdge(48, 55, 63);
+    const QColor boxHighlight(175, 188, 198);
+
+    for (const auto &box : pushBoxes_) {
+        if (!box.alive) {
+            continue;
+        }
+
+        const QRectF rect =
+            box.rect.translated(-cameraX, 0);
+
+        painter.setBrush(boxBody);
+        painter.setPen(QPen(boxEdge, 3));
+        painter.drawRoundedRect(rect, 4, 4);
+
+        painter.setPen(QPen(boxHighlight, 3));
+        painter.drawLine(
+            rect.topLeft() + QPointF(7, 7),
+            rect.topRight() + QPointF(-7, 7));
+
+        painter.setPen(QPen(boxEdge, 3));
+        painter.drawLine(
+            rect.topLeft() + QPointF(8, 8),
+            rect.bottomRight() - QPointF(8, 8));
+        painter.drawLine(
+            rect.topRight() + QPointF(-8, 8),
+            rect.bottomLeft() + QPointF(8, -8));
+
+        painter.setPen(QPen(QColor(235, 210, 90), 2));
+        painter.drawText(rect, Qt::AlignCenter, "PUSH");
     }
 
     const QColor barrelRed(165, 42, 35);
