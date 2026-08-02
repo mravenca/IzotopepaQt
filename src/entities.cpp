@@ -21,6 +21,11 @@ void Player::reset(QPointF position, bool full)
     vel_ = {};
     left_ = right_ = up_ = down_ = false;
     onGround_ = onLadder_ = climbing_ = false;
+    jumpHeld_ = false;
+    inWater_ = false;
+    waterDrag_ = 0.55;
+    buoyancy_ = 0.72;
+    surfaceFriction_ = 1.0;
     direction_ = 1;
     shootCd_ = invuln_ = anim_ = 0;
     muzzleFlash_ = 0;
@@ -104,8 +109,50 @@ void Player::update(
                     return platform.intersects(ladderPassage);
                 }),
             collisionPlatforms.end());
+    } else if (inWater_) {
+        const float targetX = static_cast<float>(horizontal * 175.0);
+        const float blend = static_cast<float>(
+            std::min(1.0, dt * (4.0 + waterDrag_ * 6.0)));
+        vel_.setX(vel_.x() + (targetX - vel_.x()) * blend);
+
+        if (horizontal != 0) {
+            direction_ = horizontal > 0 ? 1 : -1;
+        }
+
+        double verticalAcceleration = Gravity * (1.0 - buoyancy_) * 0.42;
+        if (jumpHeld_ || up_) {
+            verticalAcceleration -= 1150.0;
+        }
+        if (down_) {
+            verticalAcceleration += 760.0;
+        }
+
+        vel_.setY(static_cast<float>(
+            vel_.y() + verticalAcceleration * dt));
+
+        const float dragFactor = static_cast<float>(
+            std::exp(-waterDrag_ * 2.7 * dt));
+        vel_ *= dragFactor;
+        vel_.setY(std::clamp(vel_.y(), -280.0f, 330.0f));
     } else {
-        vel_.setX(horizontal * WalkSpeed);
+        if (surfaceFriction_ < 0.99) {
+            const float targetX = static_cast<float>(horizontal * WalkSpeed);
+            const float acceleration = static_cast<float>(
+                (650.0 + 700.0 * surfaceFriction_) * dt);
+
+            if (vel_.x() < targetX) {
+                vel_.setX(std::min(targetX, vel_.x() + acceleration));
+            } else if (vel_.x() > targetX) {
+                vel_.setX(std::max(targetX, vel_.x() - acceleration));
+            }
+
+            if (horizontal == 0) {
+                vel_.setX(vel_.x() * static_cast<float>(
+                    std::exp(-surfaceFriction_ * 3.0 * dt)));
+            }
+        } else {
+            vel_.setX(horizontal * WalkSpeed);
+        }
 
         if (horizontal != 0) {
             direction_ = horizontal > 0 ? 1 : -1;
@@ -134,7 +181,7 @@ void Player::update(
     const bool canBufferedJump =
         onGround_ || coyoteTime_ > 0.0 || onLadder_ || climbing_;
 
-    if (jumpBuffer_ > 0.0 && canBufferedJump) {
+    if (!inWater_ && jumpBuffer_ > 0.0 && canBufferedJump) {
         climbing_ = false;
         vel_.setY(-720.0f);
         onGround_ = false;
@@ -163,6 +210,7 @@ void Player::setDown(bool value) { down_ = value; }
 
 void Player::jump()
 {
+    jumpHeld_ = true;
     // Store the input briefly so a jump pressed just before landing is
     // consumed on the first legal frame.
     jumpBuffer_ = 0.12;
@@ -170,11 +218,35 @@ void Player::jump()
 
 void Player::stopJump()
 {
+    jumpHeld_ = false;
     // Releasing jump while rising reduces upward speed, producing a short hop.
     // It does not affect falling, ladder movement, or knock-back.
-    if (!climbing_ && vel_.y() < -250.0f) {
+    if (!inWater_ && !climbing_ && vel_.y() < -250.0f) {
         vel_.setY(vel_.y() * 0.45f);
     }
+}
+
+void Player::setEnvironment(
+    bool inWater,
+    double waterDrag,
+    double buoyancy,
+    double surfaceFriction)
+{
+    inWater_ = inWater;
+    waterDrag_ = std::clamp(waterDrag, 0.0, 1.0);
+    buoyancy_ = std::clamp(buoyancy, 0.0, 1.5);
+    surfaceFriction_ = std::clamp(surfaceFriction, 0.01, 1.0);
+
+    if (inWater_) {
+        climbing_ = false;
+        onLadder_ = false;
+        coyoteTime_ = 0.0;
+    }
+}
+
+bool Player::inWater() const
+{
+    return inWater_;
 }
 
 void Player::launch(const QVector2D &impulse)
@@ -361,7 +433,10 @@ void Enemy::update(
     const QVector<QRectF> &platforms,
     const QVector<QRectF> &oneWayPlatforms,
     QPointF player,
-    QVector<Projectile> &shots)
+    QVector<Projectile> &shots,
+    bool inWater,
+    double waterDrag,
+    double buoyancy)
 {
     if (hp_ <= 0) {
         return;
@@ -377,6 +452,7 @@ void Enemy::update(
     hurtFlash_ = std::max(0.0, hurtFlash_ - dt);
 
     bool wantsToMove = true;
+    const double moveSpeed = speed_ * (inWater ? 0.42 : 1.0);
 
     if (hitStun_ > 0.0) {
         vel_.setX(vel_.x() * 0.90f);
@@ -384,18 +460,18 @@ void Enemy::update(
         direction_ = dx >= 0.0 ? 1 : -1;
 
         if (distanceX > 360.0) {
-            vel_.setX(direction_ * speed_);
+            vel_.setX(direction_ * moveSpeed);
         } else if (distanceX < 180.0) {
-            vel_.setX(-direction_ * speed_);
+            vel_.setX(-direction_ * moveSpeed);
         } else {
             vel_.setX(0.0f);
             wantsToMove = false;
         }
     } else if (kind_ == "boss") {
         direction_ = dx >= 0.0 ? 1 : -1;
-        vel_.setX(direction_ * speed_);
+        vel_.setX(direction_ * moveSpeed);
     } else {
-        vel_.setX(direction_ * speed_);
+        vel_.setX(direction_ * moveSpeed);
     }
 
     bool standing = false;
@@ -427,14 +503,23 @@ void Enemy::update(
         && std::abs(dy) < 130.0
         && standing) {
         direction_ = dx >= 0.0 ? 1 : -1;
-        vel_.setX(direction_ * speed_ * 1.25);
+        vel_.setX(direction_ * moveSpeed * 1.25);
         vel_.setY(-620.0f);
         jumpCd_ = 1.1;
     }
 
-    vel_.setY(std::min(
-        static_cast<double>(vel_.y()) + Gravity * dt,
-        900.0));
+    if (inWater) {
+        const double waterGravity = Gravity * (1.0 - buoyancy) * 0.55;
+        vel_.setY(static_cast<float>(
+            std::min(260.0, vel_.y() + waterGravity * dt)));
+        const float dragFactor = static_cast<float>(
+            std::exp(-waterDrag * 2.2 * dt));
+        vel_ *= dragFactor;
+    } else {
+        vel_.setY(std::min(
+            static_cast<double>(vel_.y()) + Gravity * dt,
+            900.0));
+    }
 
     const auto result = moveAndCollideOneWay(
         rect_,

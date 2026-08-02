@@ -10,6 +10,8 @@
 #include <QTextStream>
 #include <QDebug>
 
+#include <algorithm>
+
 namespace {
 
 QRectF rectFromArray(const QJsonValue &value)
@@ -105,6 +107,8 @@ bool Level::load(const QString &requestedPath)
     conveyors_.clear();
     oneWayPlatforms_.clear();
     fallingPlatforms_.clear();
+    iceSurfaces_.clear();
+    waterZones_.clear();
     checkpoint_ = QPointF(-1, -1);
 
     const QJsonObject root = document.object();
@@ -311,6 +315,29 @@ bool Level::load(const QString &requestedPath)
         };
     }
 
+    for (const QJsonValue &value : root.value("iceSurfaces").toArray()) {
+        const QJsonObject object = value.toObject();
+        const QRectF rect = rectFromArray(object.value("rect"));
+        if (!rect.isEmpty()) {
+            iceSurfaces_ << IceSurfaceSpawn {
+                rect,
+                std::clamp(object.value("friction").toDouble(0.08), 0.01, 1.0)
+            };
+        }
+    }
+
+    for (const QJsonValue &value : root.value("waterZones").toArray()) {
+        const QJsonObject object = value.toObject();
+        const QRectF rect = rectFromArray(object.value("rect"));
+        if (!rect.isEmpty()) {
+            waterZones_ << WaterZoneSpawn {
+                rect,
+                std::clamp(object.value("buoyancy").toDouble(0.72), 0.0, 1.5),
+                std::clamp(object.value("drag").toDouble(0.55), 0.0, 1.0)
+            };
+        }
+    }
+
     if (root.contains("checkpoint")) {
         checkpoint_ =
             pointFromArray(root.value("checkpoint"));
@@ -348,5 +375,7 @@ const QVector<PressurePlateSpawn> &Level::pressurePlates() const { return pressu
 const QVector<ConveyorSpawn> &Level::conveyors() const { return conveyors_; }
 const QVector<OneWayPlatformSpawn> &Level::oneWayPlatforms() const { return oneWayPlatforms_; }
 const QVector<FallingPlatformSpawn> &Level::fallingPlatforms() const { return fallingPlatforms_; }
+const QVector<IceSurfaceSpawn> &Level::iceSurfaces() const { return iceSurfaces_; }
+const QVector<WaterZoneSpawn> &Level::waterZones() const { return waterZones_; }
 QPointF Level::checkpoint() const { return checkpoint_; }
 QRectF Level::goal() const { return goal_; }

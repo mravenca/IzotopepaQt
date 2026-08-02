@@ -10,6 +10,7 @@
 #include <QtMath>
 
 #include <algorithm>
+#include <cmath>
 
 namespace {
 constexpr double kPlatformCapWidth = 12.0;
@@ -114,7 +115,7 @@ World::World(const SpriteSheet *playerSheet, const SpriteSheet *enemySheet)
 
 bool World::loadLevel(int index)
 {
-    levelIndex_ = std::clamp(index, 0, 2);
+    levelIndex_ = std::clamp(index, 0, 9);
     if (!level_.load(QString("level%1.json").arg(levelIndex_ + 1))) {
         return false;
     }
@@ -180,6 +181,7 @@ bool World::loadLevel(int index)
     for (const auto &spawn : level_.barrels()) {
         barrels_ << Barrel {
             QRectF(spawn.position.x(), spawn.position.y(), 40, 52),
+            QVector2D(),
             spawn.radius,
             spawn.damage,
             -1.0,
@@ -234,6 +236,17 @@ bool World::loadLevel(int index)
             spawn.fallDelay,
             spawn.respawnDelay);
     }
+
+    iceSurfaces_.clear();
+    for (const auto &spawn : level_.iceSurfaces()) {
+        iceSurfaces_ << IceSurface(spawn.rect, spawn.friction);
+    }
+
+    waterZones_.clear();
+    for (const auto &spawn : level_.waterZones()) {
+        waterZones_ << WaterZone(spawn.rect, spawn.buoyancy, spawn.drag);
+    }
+    playerWasInWater_ = false;
 
     pressurePlates_.clear();
     worldEvents_.clear();
@@ -375,6 +388,8 @@ void World::update(double dt)
             }
         }
     }
+    updateWaterObjects(dt);
+
     for (int barrelIndex = 0;
          barrelIndex < barrels_.size();
          ++barrelIndex) {
@@ -387,9 +402,10 @@ void World::update(double dt)
         barrel.fuse -= dt;
 
         if (barrel.fuse <= 0.0) {
+            const bool underwater = waterZoneFor(barrel.rect) != nullptr;
             const ExplosionEvent event {
                 barrel.rect.center(),
-                barrel.radius,
+                barrel.radius * (underwater ? 0.55 : 1.0),
                 barrel.damage
             };
 
@@ -403,6 +419,23 @@ void World::update(double dt)
     rebuildCollision();
     updatePushBoxes(dt);
     rebuildCollision();
+
+    const WaterZone *playerWater = waterZoneFor(player_.rect());
+    const bool playerInWater = playerWater != nullptr;
+    player_.setEnvironment(
+        playerInWater,
+        playerWater ? playerWater->drag() : 0.55,
+        playerWater ? playerWater->buoyancy() : 0.72,
+        iceFrictionBelow(player_.rect()));
+
+    if (playerInWater != playerWasInWater_) {
+        createSplash(QPointF(
+            player_.rect().center().x(),
+            playerWater ? playerWater->rect().top()
+                        : player_.rect().bottom()));
+        playerWasInWater_ = playerInWater;
+    }
+
     player_.update(
         dt,
         collision_,
@@ -416,12 +449,16 @@ void World::update(double dt)
     processWorldEvents();
     refreshDoorStates();
     for (auto &enemy : enemies_) {
+        const WaterZone *enemyWater = waterZoneFor(enemy.rect());
         enemy.update(
             dt,
             collision_,
             oneWayRects(),
             player_.rect().center(),
-            projectiles_);
+            projectiles_,
+            enemyWater != nullptr,
+            enemyWater ? enemyWater->drag() : 0.55,
+            enemyWater ? enemyWater->buoyancy() : 0.72);
     }
 
     for (int first = 0; first < enemies_.size(); ++first) {
@@ -499,6 +536,13 @@ void World::update(double dt)
         }
 
         projectile.life -= dt;
+
+        if (waterZoneFor(projectile.rect)) {
+            const float dragFactor = static_cast<float>(std::exp(-2.8 * dt));
+            projectile.velocity *= dragFactor;
+            projectile.life -= dt * 0.35;
+        }
+
         projectile.rect.translate(projectile.velocity.x() * dt,
                                   projectile.velocity.y() * dt);
 
@@ -514,7 +558,16 @@ void World::update(double dt)
                 projectile.alive = false;
                 hitBarrel = true;
 
-                if (barrel.fuse < 0.0) {
+                if (waterZoneFor(barrel.rect)) {
+                    const ExplosionEvent event {
+                        barrel.rect.center(),
+                        barrel.radius * 0.55,
+                        barrel.damage
+                    };
+                    barrel.alive = false;
+                    rebuildCollision();
+                    applyExplosion(event);
+                } else if (barrel.fuse < 0.0) {
                     barrel.fuse = 0.12;
                     message_ = "Barrel fuse lit";
                     messageTime_ = 0.7;
@@ -1184,16 +1237,25 @@ void World::updatePushBoxes(double dt)
         }
 
         const double beltSpeed = conveyorSpeedBelow(box.rect);
+        const WaterZone *water = waterZoneFor(box.rect);
+        const double iceFriction = iceFrictionBelow(box.rect);
 
         if (pushDirection != 0) {
+            const double pushScale = water ? 0.60 : 1.0;
             box.velocity.setX(static_cast<float>(
-                pushDirection * kPushSpeed + beltSpeed));
+                pushDirection * kPushSpeed * pushScale + beltSpeed));
         } else if (!qFuzzyIsNull(beltSpeed)) {
             const float target = static_cast<float>(beltSpeed);
             box.velocity.setX(
                 box.velocity.x()
                 + (target - box.velocity.x())
                     * static_cast<float>(std::min(1.0, dt * 12.0)));
+        } else if (water) {
+            box.velocity.setX(box.velocity.x() * static_cast<float>(
+                std::exp(-water->drag() * 2.0 * dt)));
+        } else if (iceFriction < 0.99) {
+            box.velocity.setX(box.velocity.x() * static_cast<float>(
+                std::exp(-iceFriction * 2.4 * dt)));
         } else {
             box.velocity.setX(box.velocity.x() * 0.72f);
         }
@@ -1202,11 +1264,22 @@ void World::updatePushBoxes(double dt)
             box.velocity.setX(0.0f);
         }
 
-        box.velocity.setY(
-            std::min(
-                box.velocity.y()
-                    + static_cast<float>(kGravity * dt),
-                950.0f));
+        if (water) {
+            const double submerged = water->submergedFraction(box.rect);
+            const double acceleration =
+                kGravity - water->buoyancy() * 2450.0 * submerged;
+            box.velocity.setY(static_cast<float>(
+                box.velocity.y() + acceleration * dt));
+            box.velocity.setY(box.velocity.y() * static_cast<float>(
+                std::exp(-water->drag() * 2.5 * dt)));
+            box.velocity.setY(std::clamp(box.velocity.y(), -230.0f, 280.0f));
+        } else {
+            box.velocity.setY(
+                std::min(
+                    box.velocity.y()
+                        + static_cast<float>(kGravity * dt),
+                    950.0f));
+        }
 
         moveAndCollideOneWay(
             box.rect,
@@ -1248,6 +1321,92 @@ void World::updatePushBoxes(double dt)
 
     if (collisionChanged) {
         rebuildCollision();
+    }
+}
+
+const WaterZone *World::waterZoneFor(const QRectF &rect) const
+{
+    for (const WaterZone &zone : waterZones_) {
+        if (zone.overlaps(rect)) {
+            return &zone;
+        }
+    }
+    return nullptr;
+}
+
+double World::iceFrictionBelow(const QRectF &rect) const
+{
+    for (const IceSurface &surface : iceSurfaces_) {
+        if (surface.supports(rect)) {
+            return surface.friction();
+        }
+    }
+    return 1.0;
+}
+
+void World::createSplash(const QPointF &position)
+{
+    for (int i = 0; i < 3; ++i) {
+        explode(
+            position + QPointF((i - 1) * 9.0, 0.0),
+            QColor(150, 225, 255));
+    }
+}
+
+void World::updateWaterObjects(double dt)
+{
+    constexpr double gravity = 1900.0;
+
+    for (Barrel &barrel : barrels_) {
+        if (!barrel.alive) {
+            continue;
+        }
+
+        const WaterZone *water = waterZoneFor(barrel.rect);
+        if (water) {
+            if (barrel.fuse >= 0.0) {
+                barrel.fuse = -1.0;
+                message_ = "Barrel fuse extinguished";
+                messageTime_ = 0.8;
+                createSplash(QPointF(barrel.rect.center().x(), water->rect().top()));
+            }
+
+            const double submerged = water->submergedFraction(barrel.rect);
+            const double acceleration =
+                gravity - water->buoyancy() * 2650.0 * submerged;
+            barrel.velocity.setY(static_cast<float>(
+                barrel.velocity.y() + acceleration * dt));
+            barrel.velocity *= static_cast<float>(
+                std::exp(-water->drag() * 2.8 * dt));
+            barrel.velocity.setY(std::clamp(barrel.velocity.y(), -210.0f, 260.0f));
+        } else {
+            barrel.velocity.setY(std::min(
+                barrel.velocity.y() + static_cast<float>(gravity * dt),
+                900.0f));
+            barrel.velocity.setX(barrel.velocity.x() * 0.85f);
+        }
+
+        QVector<QRectF> blockers = level_.platforms();
+        for (const MovingPlatform &platform : moving_) {
+            blockers << platform.rect;
+        }
+        for (const Door &door : doors_) {
+            if (!door.open) {
+                blockers << door.rect;
+            }
+        }
+        for (const Crate &crate : crates_) {
+            if (crate.alive) {
+                blockers << crate.rect;
+            }
+        }
+
+        moveAndCollideOneWay(
+            barrel.rect,
+            barrel.velocity,
+            dt,
+            blockers,
+            oneWayRects());
     }
 }
 
@@ -1514,6 +1673,10 @@ void World::draw(QPainter &painter, double cameraX) const
 
     painter.translate(shakeOffset);
 
+    for (const WaterZone &zone : waterZones_) {
+        zone.drawBack(painter, cameraX, animationTime_);
+    }
+
     for (const auto &platform : level_.platforms()) {
         drawStaticPlatform(painter, platform.translated(-cameraX, 0));
     }
@@ -1536,6 +1699,10 @@ void World::draw(QPainter &painter, double cameraX) const
 
     for (const Conveyor &conveyor : conveyors_) {
         conveyor.draw(painter, cameraX);
+    }
+
+    for (const IceSurface &surface : iceSurfaces_) {
+        surface.draw(painter, cameraX, animationTime_);
     }
 
     for (const JumpPad &pad : jumpPads_) {
@@ -1863,6 +2030,10 @@ void World::draw(QPainter &painter, double cameraX) const
 
         painter.fillRect(trail, gradient);
         painter.fillRect(projectileRect, core);
+    }
+
+    for (const WaterZone &zone : waterZones_) {
+        zone.drawFront(painter, cameraX, animationTime_);
     }
 
     for (const auto &particle : particles_) {

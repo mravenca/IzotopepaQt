@@ -1,0 +1,203 @@
+{
+  "name": "6. Trust Your Step",
+  "world": {
+    "width": 3300,
+    "height": 640
+  },
+  "player": {
+    "x": 80,
+    "y": 450
+  },
+  "platforms": [
+    [
+      0,
+      570,
+      580,
+      70
+    ],
+    [
+      680,
+      570,
+      620,
+      70
+    ],
+    [
+      1420,
+      570,
+      620,
+      70
+    ],
+    [
+      2160,
+      570,
+      1140,
+      70
+    ],
+    [
+      260,
+      455,
+      180,
+      24
+    ],
+    [
+      2380,
+      455,
+      180,
+      24
+    ],
+    [
+      2860,
+      380,
+      180,
+      24
+    ]
+  ],
+  "movingPlatforms": [],
+  "ladders": [],
+  "spikes": [],
+  "enemies": [
+    {
+      "kind": "jumper",
+      "x": 980,
+      "y": 320,
+      "left": 900,
+      "right": 1080
+    },
+    {
+      "kind": "shooter",
+      "x": 1710,
+      "y": 320,
+      "left": 1640,
+      "right": 1850
+    },
+    {
+      "kind": "walker",
+      "x": 2460,
+      "y": 500,
+      "left": 2240,
+      "right": 2700
+    }
+  ],
+  "coins": [
+    [
+      730,
+      425
+    ],
+    [
+      950,
+      345
+    ],
+    [
+      1170,
+      265
+    ],
+    [
+      1500,
+      425
+    ],
+    [
+      1720,
+      345
+    ],
+    [
+      1940,
+      265
+    ],
+    [
+      2520,
+      315
+    ],
+    [
+      2730,
+      235
+    ],
+    [
+      3000,
+      335
+    ]
+  ],
+  "pickups": [],
+  "keys": [],
+  "doors": [],
+  "switches": [],
+  "crates": [],
+  "barrels": [],
+  "pushableBoxes": [],
+  "jumpPads": [
+    {
+      "x": 520,
+      "y": 550,
+      "width": 60,
+      "height": 20,
+      "strength": 820,
+      "horizontal": 70,
+      "delay": 0.08,
+      "cooldown": 0.25
+    }
+  ],
+  "pressurePlates": [],
+  "conveyors": [],
+  "oneWayPlatforms": [
+    {
+      "x": 680,
+      "y": 470,
+      "width": 180,
+      "height": 16
+    },
+    {
+      "x": 900,
+      "y": 390,
+      "width": 180,
+      "height": 16
+    },
+    {
+      "x": 1120,
+      "y": 310,
+      "width": 180,
+      "height": 16
+    },
+    {
+      "x": 1450,
+      "y": 470,
+      "width": 180,
+      "height": 16
+    },
+    {
+      "x": 1670,
+      "y": 390,
+      "width": 180,
+      "height": 16
+    },
+    {
+      "x": 1890,
+      "y": 310,
+      "width": 180,
+      "height": 16
+    },
+    {
+      "x": 2500,
+      "y": 360,
+      "width": 180,
+      "height": 16
+    },
+    {
+      "x": 2710,
+      "y": 280,
+      "width": 180,
+      "height": 16
+    }
+  ],
+  "fallingPlatforms": [],
+  "iceSurfaces": [],
+  "waterZones": [],
+  "checkpoint": [
+    1640,
+    480
+  ],
+  "goal": [
+    3180,
+    470,
+    55,
+    100
+  ]
+}

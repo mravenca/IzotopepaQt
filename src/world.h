@@ -7,6 +7,7 @@
 #include "conveyor.h"
 #include "onewayplatform.h"
 #include "fallingplatform.h"
+#include "environmentvolume.h"
 #include "worldevent.h"
 
 #include <QPointF>
@@ -65,6 +66,7 @@ struct Crate {
 
 struct Barrel {
     QRectF rect;
+    QVector2D velocity;
     double radius = 150;
     int damage = 3;
     double fuse = -1;
@@ -126,6 +128,10 @@ private:
     void updatePressurePlates(double dt);
     void updateConveyors(double dt);
     void updateFallingPlatforms(double dt);
+    void updateWaterObjects(double dt);
+    const WaterZone *waterZoneFor(const QRectF &rect) const;
+    double iceFrictionBelow(const QRectF &rect) const;
+    void createSplash(const QPointF &position);
     bool standingOnFallingPlatform(const QRectF &object, const QRectF &platform) const;
     bool fallingPlatformRespawnClear(const QRectF &rect) const;
     QVector<QRectF> oneWayRects() const;
@@ -159,6 +165,8 @@ private:
     QVector<Conveyor> conveyors_;
     QVector<OneWayPlatform> oneWayPlatforms_;
     QVector<FallingPlatform> fallingPlatforms_;
+    QVector<IceSurface> iceSurfaces_;
+    QVector<WaterZone> waterZones_;
     WorldEventQueue worldEvents_;
     QVector<JumpPadActivation> jumpPadActivations_;
     QVector<Projectile> projectiles_;
@@ -181,4 +189,5 @@ private:
     double shakeStrength_ = 0;
     double animationTime_ = 0;
     double oneWayDropTimer_ = 0;
+    bool playerWasInWater_ = false;
 };
