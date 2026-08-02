@@ -22,5 +22,5 @@ void GameWidget::keyPressEvent(QKeyEvent*e){if(e->isAutoRepeat())return;int k=e-
  else if(mode_==Mode::GameOver){if(menuIndex_==0){world_.resetFromCheckpoint();mode_=Mode::Playing;}else if(menuIndex_==1)startLevel(world_.levelIndex());else{mode_=Mode::Menu;menuIndex_=0;}}
  else if(mode_==Mode::Complete){if(menuIndex_==0)startLevel(world_.levelIndex()<2?world_.levelIndex()+1:0);else{mode_=Mode::Menu;menuIndex_=0;}}
 }
-void GameWidget::keyReleaseEvent(QKeyEvent*e){if(e->isAutoRepeat())return;int k=e->key();if(k==Qt::Key_Left||k==Qt::Key_A)left_=false;else if(k==Qt::Key_Right||k==Qt::Key_D)right_=false;else if(k==Qt::Key_Up||k==Qt::Key_W)up_=false;else if(k==Qt::Key_Down||k==Qt::Key_S)down_=false;}
+void GameWidget::keyReleaseEvent(QKeyEvent*e){if(e->isAutoRepeat())return;int k=e->key();if(k==Qt::Key_Left||k==Qt::Key_A)left_=false;else if(k==Qt::Key_Right||k==Qt::Key_D)right_=false;else if(k==Qt::Key_Up||k==Qt::Key_W)up_=false;else if(k==Qt::Key_Down||k==Qt::Key_S)down_=false;else if(k==Qt::Key_Space)world_.stopJump();}
 void GameWidget::saveSettings(){}

@@ -31,6 +31,7 @@ public:
     void setUp(bool);
     void setDown(bool);
     void jump();
+    void stopJump();
 
     bool carryBy(
         const QPointF &delta,

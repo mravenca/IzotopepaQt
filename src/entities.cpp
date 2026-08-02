@@ -159,6 +159,15 @@ void Player::jump()
     jumpBuffer_ = 0.12;
 }
 
+void Player::stopJump()
+{
+    // Releasing jump while rising reduces upward speed, producing a short hop.
+    // It does not affect falling, ladder movement, or knock-back.
+    if (!climbing_ && vel_.y() < -250.0f) {
+        vel_.setY(vel_.y() * 0.45f);
+    }
+}
+
 bool Player::carryBy(
     const QPointF &delta,
     const QVector<QRectF> &blockers)

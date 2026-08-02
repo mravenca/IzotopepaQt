@@ -437,6 +437,13 @@ void World::jump()
     }
 }
 
+void World::stopJump()
+{
+    if (!completed_ && !gameOver_) {
+        player_.stopJump();
+    }
+}
+
 void World::shoot()
 {
     if (!completed_ && !gameOver_ && player_.canShoot()) {
