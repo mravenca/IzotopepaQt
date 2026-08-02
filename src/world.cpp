@@ -165,6 +165,16 @@ bool World::loadLevel(int index)
                         false};
     }
 
+    crates_.clear();
+    for (const auto &spawn : level_.crates()) {
+        crates_ << Crate {
+            QRectF(spawn.position.x(), spawn.position.y(), 48, 48),
+            spawn.drop,
+            spawn.hp,
+            true
+        };
+    }
+
     projectiles_.clear();
     particles_.clear();
     completed_ = false;
@@ -193,6 +203,11 @@ void World::rebuildCollision()
     for (const auto &door : doors_) {
         if (!door.open) {
             collision_ << door.rect;
+        }
+    }
+    for (const auto &crate : crates_) {
+        if (crate.alive) {
+            collision_ << crate.rect;
         }
     }
 }
@@ -358,6 +373,67 @@ void World::update(double dt)
         projectile.life -= dt;
         projectile.rect.translate(projectile.velocity.x() * dt,
                                   projectile.velocity.y() * dt);
+
+        bool hitCrate = false;
+
+        if (!projectile.hostile) {
+            for (auto &crate : crates_) {
+                if (!crate.alive || !projectile.rect.intersects(crate.rect)) {
+                    continue;
+                }
+
+                projectile.alive = false;
+                hitCrate = true;
+                --crate.hp;
+
+                explode(projectile.rect.center(), QColor(225, 165, 80));
+
+                if (crate.hp <= 0) {
+                    crate.alive = false;
+                    player_.addScore(25);
+
+                    for (int fragment = 0; fragment < 3; ++fragment) {
+                        explode(
+                            crate.rect.center()
+                                + QPointF((fragment - 1) * 10, -fragment * 4),
+                            QColor(145, 85, 38));
+                    }
+
+                    const QPointF dropPosition(
+                        crate.rect.center().x() - 12,
+                        crate.rect.top() - 28);
+
+                    if (crate.drop == "coin") {
+                        coins_ << Coin {
+                            QRectF(dropPosition.x(), dropPosition.y(), 24, 24),
+                            false,
+                            dropPosition.x() * .01
+                        };
+                    } else if (crate.drop == "health"
+                               || crate.drop == "ammo") {
+                        pickups_ << Pickup {
+                            crate.drop,
+                            QRectF(dropPosition.x(), dropPosition.y(), 28, 28),
+                            false
+                        };
+                    }
+
+                    message_ = crate.drop == "none"
+                        ? "Crate destroyed"
+                        : "Crate dropped " + crate.drop;
+                    messageTime_ = 1.2;
+
+                    rebuildCollision();
+                    beep();
+                }
+
+                break;
+            }
+        }
+
+        if (hitCrate) {
+            continue;
+        }
 
         if (projectile.life <= 0 || intersectsAny(projectile.rect, collision_)) {
             projectile.alive = false;
@@ -696,6 +772,38 @@ void World::draw(QPainter &painter, double cameraX) const
         painter.setBrush(QColor(235, 70, 65));
         painter.setPen(QPen(QColor(255, 225, 180), 2));
         painter.drawPolygon(flag);
+    }
+
+    const QColor crateWood(154, 91, 42);
+    const QColor crateDark(91, 52, 25);
+    const QColor crateLight(213, 146, 72);
+
+    for (const auto &crate : crates_) {
+        if (!crate.alive) {
+            continue;
+        }
+
+        const QRectF rect = crate.rect.translated(-cameraX, 0);
+
+        painter.setPen(QPen(crateDark, 3));
+        painter.setBrush(crateWood);
+        painter.drawRect(rect);
+
+        painter.setPen(QPen(crateLight, 4));
+        painter.drawLine(
+            rect.topLeft() + QPointF(6, 6),
+            rect.bottomRight() - QPointF(6, 6));
+        painter.drawLine(
+            rect.topRight() + QPointF(-6, 6),
+            rect.bottomLeft() + QPointF(6, -6));
+
+        painter.setPen(QPen(crateDark, 3));
+        painter.drawRect(rect.adjusted(6, 6, -6, -6));
+
+        if (crate.hp > 1) {
+            painter.setPen(Qt::white);
+            painter.drawText(rect, Qt::AlignCenter, QString::number(crate.hp));
+        }
     }
 
     for (const auto &enemy : enemies_) {
