@@ -1,3 +1,18 @@
+## M4 — Trust Your Step
+
+### Added
+- Directional one-way platform collision.
+- Down + Jump drop-through control.
+- One-way support for players, enemies, and pushable boxes.
+- JSON level definitions and dedicated vector rendering.
+
+## M3 — Assembly Line
+
+### Added
+- Animated conveyor belts with configurable direction and speed.
+- Conveyor transport for the player and pushable boxes.
+- Conveyor documentation and regression checklist.
+
 # Changelog
 
 ## Unreleased

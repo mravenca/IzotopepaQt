@@ -80,3 +80,71 @@ double Camera::lookAhead() const
     return lookAhead_;
 }
 bool intersectsAny(const QRectF&r,const QVector<QRectF>&v){for(const auto&a:v)if(r.intersects(a))return true;return false;}
+
+MoveResult moveAndCollideOneWay(
+    QRectF &rect,
+    QVector2D &velocity,
+    double dt,
+    const QVector<QRectF> &solids,
+    const QVector<QRectF> &oneWayPlatforms,
+    bool ignoreOneWay)
+{
+    MoveResult result;
+
+    rect.translate(velocity.x() * dt, 0.0);
+    for (const QRectF &solid : solids) {
+        if (!rect.intersects(solid)) {
+            continue;
+        }
+
+        if (velocity.x() > 0.0f) {
+            rect.moveRight(solid.left());
+        } else if (velocity.x() < 0.0f) {
+            rect.moveLeft(solid.right());
+        }
+
+        velocity.setX(0.0f);
+        result.hitWall = true;
+    }
+
+    const double previousBottom = rect.bottom();
+    rect.translate(0.0, velocity.y() * dt);
+
+    for (const QRectF &solid : solids) {
+        if (!rect.intersects(solid)) {
+            continue;
+        }
+
+        if (velocity.y() > 0.0f) {
+            rect.moveBottom(solid.top());
+            result.onGround = true;
+        } else if (velocity.y() < 0.0f) {
+            rect.moveTop(solid.bottom());
+            result.hitCeiling = true;
+        }
+
+        velocity.setY(0.0f);
+    }
+
+    if (!ignoreOneWay && velocity.y() >= 0.0f) {
+        for (const QRectF &platform : oneWayPlatforms) {
+            const bool horizontalOverlap =
+                rect.right() > platform.left() + 2.0
+                && rect.left() < platform.right() - 2.0;
+            const bool crossedTop =
+                previousBottom <= platform.top() + 4.0
+                && rect.bottom() >= platform.top();
+
+            if (!horizontalOverlap || !crossedTop) {
+                continue;
+            }
+
+            rect.moveBottom(platform.top());
+            velocity.setY(0.0f);
+            result.onGround = true;
+            break;
+        }
+    }
+
+    return result;
+}

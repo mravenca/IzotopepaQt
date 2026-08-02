@@ -4,6 +4,8 @@
 #include "level.h"
 #include "jumppad.h"
 #include "pressureplate.h"
+#include "conveyor.h"
+#include "onewayplatform.h"
 #include "worldevent.h"
 
 #include <QPointF>
@@ -121,6 +123,10 @@ private:
     void updatePushBoxes(double dt);
     void updateJumpPads(double dt);
     void updatePressurePlates(double dt);
+    void updateConveyors(double dt);
+    QVector<QRectF> oneWayRects() const;
+    bool playerStandingOnOneWay() const;
+    double conveyorSpeedBelow(const QRectF &rect) const;
     void processWorldEvents();
     void refreshDoorStates();
     void launchFromPad(int padIndex);
@@ -146,6 +152,8 @@ private:
     QVector<PushBox> pushBoxes_;
     QVector<JumpPad> jumpPads_;
     QVector<PressurePlate> pressurePlates_;
+    QVector<Conveyor> conveyors_;
+    QVector<OneWayPlatform> oneWayPlatforms_;
     WorldEventQueue worldEvents_;
     QVector<JumpPadActivation> jumpPadActivations_;
     QVector<Projectile> projectiles_;
@@ -160,10 +168,12 @@ private:
     bool sound_ = true;
     bool inputLeft_ = false;
     bool inputRight_ = false;
+    bool inputDown_ = false;
 
     QString message_;
     double messageTime_ = 0;
     double shakeTime_ = 0;
     double shakeStrength_ = 0;
     double animationTime_ = 0;
+    double oneWayDropTimer_ = 0;
 };

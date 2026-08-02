@@ -216,6 +216,16 @@ bool World::loadLevel(int index)
         jumpPadActivations_ << JumpPadActivation {};
     }
 
+    conveyors_.clear();
+    for (const auto &spawn : level_.conveyors()) {
+        conveyors_ << Conveyor(spawn.rect, spawn.speed);
+    }
+
+    oneWayPlatforms_.clear();
+    for (const auto &spawn : level_.oneWayPlatforms()) {
+        oneWayPlatforms_ << OneWayPlatform(spawn.rect);
+    }
+
     pressurePlates_.clear();
     worldEvents_.clear();
     for (const auto &spawn : level_.pressurePlates()) {
@@ -282,6 +292,7 @@ void World::update(double dt)
         return;
     }
     animationTime_ += dt;
+    oneWayDropTimer_ = std::max(0.0, oneWayDropTimer_ - dt);
     shakeTime_ = std::max(0.0, shakeTime_ - dt);
     if (shakeTime_ <= 0.0) {
         shakeStrength_ = 0.0;
@@ -376,7 +387,14 @@ void World::update(double dt)
 
     updatePushBoxes(dt);
     rebuildCollision();
-    player_.update(dt, collision_, level_.ladders(), level_.worldSize().width());
+    player_.update(
+        dt,
+        collision_,
+        oneWayRects(),
+        level_.ladders(),
+        level_.worldSize().width(),
+        oneWayDropTimer_ > 0.0);
+    updateConveyors(dt);
     updateJumpPads(dt);
     updatePressurePlates(dt);
     processWorldEvents();
@@ -385,6 +403,7 @@ void World::update(double dt)
         enemy.update(
             dt,
             collision_,
+            oneWayRects(),
             player_.rect().center(),
             projectiles_);
     }
@@ -777,6 +796,50 @@ void World::refreshDoorStates()
     }
 }
 
+double World::conveyorSpeedBelow(const QRectF &rect) const
+{
+    const QRectF feet(
+        rect.left() + 5.0,
+        rect.bottom() - 4.0,
+        std::max(1.0, rect.width() - 10.0),
+        9.0);
+
+    double result = 0.0;
+
+    for (const Conveyor &conveyor : conveyors_) {
+        if (feet.intersects(conveyor.surfaceZone())
+            && rect.bottom() <= conveyor.rect().top() + 7.0) {
+            result += conveyor.speed();
+        }
+    }
+
+    return std::clamp(result, -500.0, 500.0);
+}
+
+void World::updateConveyors(double dt)
+{
+    for (Conveyor &conveyor : conveyors_) {
+        conveyor.update(dt);
+    }
+
+    const double playerSpeed = conveyorSpeedBelow(player_.rect());
+
+    if (!qFuzzyIsNull(playerSpeed)) {
+        QVector<QRectF> blockers = collision_;
+
+        // The player may be touching a push box that is also being carried.
+        // Excluding boxes prevents artificial crush damage between two
+        // objects travelling at the same belt speed.
+        for (const PushBox &box : pushBoxes_) {
+            if (box.alive) {
+                blockers.removeAll(box.rect);
+            }
+        }
+
+        player_.carryBy(QPointF(playerSpeed * dt, 0.0), blockers);
+    }
+}
+
 void World::updateJumpPads(double dt)
 {
     for (int index = 0; index < jumpPads_.size(); ++index) {
@@ -982,10 +1045,20 @@ void World::updatePushBoxes(double dt)
             pushDirection = -1;
         }
 
-        box.velocity.setX(
-            pushDirection == 0
-                ? box.velocity.x() * 0.72f
-                : static_cast<float>(pushDirection * kPushSpeed));
+        const double beltSpeed = conveyorSpeedBelow(box.rect);
+
+        if (pushDirection != 0) {
+            box.velocity.setX(static_cast<float>(
+                pushDirection * kPushSpeed + beltSpeed));
+        } else if (!qFuzzyIsNull(beltSpeed)) {
+            const float target = static_cast<float>(beltSpeed);
+            box.velocity.setX(
+                box.velocity.x()
+                + (target - box.velocity.x())
+                    * static_cast<float>(std::min(1.0, dt * 12.0)));
+        } else {
+            box.velocity.setX(box.velocity.x() * 0.72f);
+        }
 
         if (qAbs(box.velocity.x()) < 1.0f) {
             box.velocity.setX(0.0f);
@@ -997,7 +1070,12 @@ void World::updatePushBoxes(double dt)
                     + static_cast<float>(kGravity * dt),
                 950.0f));
 
-        moveAndCollide(box.rect, box.velocity, dt, blockers);
+        moveAndCollideOneWay(
+            box.rect,
+            box.velocity,
+            dt,
+            blockers,
+            oneWayRects());
 
         if (box.rect.left() < 0.0) {
             box.rect.moveLeft(0.0);
@@ -1035,10 +1113,42 @@ void World::updatePushBoxes(double dt)
     }
 }
 
+QVector<QRectF> World::oneWayRects() const
+{
+    QVector<QRectF> rects;
+    rects.reserve(oneWayPlatforms_.size());
+
+    for (const OneWayPlatform &platform : oneWayPlatforms_) {
+        rects << platform.rect();
+    }
+
+    return rects;
+}
+
+bool World::playerStandingOnOneWay() const
+{
+    const QRectF feet(
+        player_.rect().left() + 5.0,
+        player_.rect().bottom() - 3.0,
+        player_.rect().width() - 10.0,
+        8.0);
+
+    for (const OneWayPlatform &platform : oneWayPlatforms_) {
+        const QRectF &rect = platform.rect();
+        if (feet.intersects(rect)
+            && player_.rect().bottom() <= rect.top() + 5.0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void World::setInput(bool left, bool right, bool up, bool down)
 {
     inputLeft_ = left;
     inputRight_ = right;
+    inputDown_ = down;
 
     player_.setLeft(left);
     player_.setRight(right);
@@ -1048,9 +1158,19 @@ void World::setInput(bool left, bool right, bool up, bool down)
 
 void World::jump()
 {
-    if (!completed_ && !gameOver_) {
-        player_.jump();
+    if (completed_ || gameOver_) {
+        return;
     }
+
+    if (inputDown_ && playerStandingOnOneWay()) {
+        oneWayDropTimer_ = 0.24;
+        player_.dropThroughOneWay();
+        message_ = "Drop through";
+        messageTime_ = 0.45;
+        return;
+    }
+
+    player_.jump();
 }
 
 void World::stopJump()
@@ -1266,6 +1386,14 @@ void World::draw(QPainter &painter, double cameraX) const
 
     for (const auto &platform : moving_) {
         drawMovingPlatform(painter, platform.rect.translated(-cameraX, 0));
+    }
+
+    for (const OneWayPlatform &platform : oneWayPlatforms_) {
+        platform.draw(painter, cameraX);
+    }
+
+    for (const Conveyor &conveyor : conveyors_) {
+        conveyor.draw(painter, cameraX);
     }
 
     for (const JumpPad &pad : jumpPads_) {
