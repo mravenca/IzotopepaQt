@@ -267,7 +267,29 @@ void World::update(double dt)
     rebuildCollision();
     player_.update(dt, collision_, level_.ladders(), level_.worldSize().width());
     for (auto &enemy : enemies_) {
-        enemy.update(dt, collision_, player_.rect().center(), projectiles_);
+        enemy.update(
+            dt,
+            collision_,
+            player_.rect().center(),
+            projectiles_);
+    }
+
+    for (int first = 0; first < enemies_.size(); ++first) {
+        if (!enemies_[first].alive()) {
+            continue;
+        }
+
+        for (int second = first + 1; second < enemies_.size(); ++second) {
+            if (!enemies_[second].alive()) {
+                continue;
+            }
+
+            const QRectF firstRect = enemies_[first].rect();
+            const QRectF secondRect = enemies_[second].rect();
+
+            enemies_[first].separateFrom(secondRect);
+            enemies_[second].separateFrom(firstRect);
+        }
     }
 
     for (auto &coin : coins_) {
@@ -345,7 +367,7 @@ void World::update(double dt)
         } else {
             for (auto &enemy : enemies_) {
                 if (enemy.alive() && projectile.rect.intersects(enemy.rect())) {
-                    enemy.damage(1);
+                    enemy.damage(1, projectile.rect.center().x());
                     projectile.alive = false;
                     explode(projectile.rect.center(), Qt::yellow);
                     if (!enemy.alive()) {

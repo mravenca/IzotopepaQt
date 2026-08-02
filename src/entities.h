@@ -83,8 +83,16 @@ private:
 class Enemy {
 public:
     Enemy(const SpriteSheet *, QString, QPointF, double, double);
-    void update(double, const QVector<QRectF> &, QPointF, QVector<Projectile> &);
-    void damage(int);
+
+    void update(
+        double dt,
+        const QVector<QRectF> &platforms,
+        QPointF player,
+        QVector<Projectile> &shots);
+
+    void damage(int amount, double sourceX);
+    void separateFrom(const QRectF &other);
+
     void draw(QPainter &, double) const;
     QRectF rect() const;
     bool alive() const;
@@ -95,11 +103,16 @@ private:
     QString kind_;
     QRectF rect_;
     QVector2D vel_;
+
     double left_ = 0;
     double right_ = 0;
     double speed_ = 90;
     double shootCd_ = 1;
+    double jumpCd_ = 0;
     double anim_ = 0;
+    double hitStun_ = 0;
+    double hurtFlash_ = 0;
+
     int direction_ = 1;
     int frame_ = 0;
     int hp_ = 1;

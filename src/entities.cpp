@@ -254,13 +254,13 @@ Enemy::Enemy(
       right_(right)
 {
     if (kind == "shooter") {
-        speed_ = 55;
+        speed_ = 70;
         hp_ = 2;
     } else if (kind == "jumper") {
-        speed_ = 115;
+        speed_ = 105;
         hp_ = 2;
     } else if (kind == "boss") {
-        speed_ = 70;
+        speed_ = 75;
         hp_ = 12;
         rect_.setWidth(70);
     }
@@ -279,17 +279,59 @@ void Enemy::update(
     }
 
     const double dx = player.x() - rect_.center().x();
+    const double dy = player.y() - rect_.center().y();
+    const double distanceX = std::abs(dx);
 
-    if (kind_ == "boss" || kind_ == "shooter") {
-        direction_ = dx > 0 ? 1 : -1;
+    shootCd_ -= dt;
+    jumpCd_ = std::max(0.0, jumpCd_ - dt);
+    hitStun_ = std::max(0.0, hitStun_ - dt);
+    hurtFlash_ = std::max(0.0, hurtFlash_ - dt);
+
+    bool wantsToMove = true;
+
+    if (hitStun_ > 0.0) {
+        vel_.setX(vel_.x() * 0.90f);
+    } else if (kind_ == "shooter") {
+        direction_ = dx >= 0.0 ? 1 : -1;
+
+        if (distanceX > 360.0) {
+            vel_.setX(direction_ * speed_);
+        } else if (distanceX < 180.0) {
+            vel_.setX(-direction_ * speed_);
+        } else {
+            vel_.setX(0.0f);
+            wantsToMove = false;
+        }
+    } else if (kind_ == "boss") {
+        direction_ = dx >= 0.0 ? 1 : -1;
+        vel_.setX(direction_ * speed_);
+    } else {
+        vel_.setX(direction_ * speed_);
     }
 
-    vel_.setX(direction_ * speed_);
+    bool standing = false;
+    const QRectF feetProbe(
+        rect_.left() + 5.0,
+        rect_.bottom(),
+        rect_.width() - 10.0,
+        5.0);
+
+    for (const QRectF &platform : platforms) {
+        if (feetProbe.intersects(platform)) {
+            standing = true;
+            break;
+        }
+    }
 
     if (kind_ == "jumper"
-        && std::abs(dx) < 280
-        && std::abs(vel_.y()) < 1) {
-        vel_.setY(-620);
+        && jumpCd_ <= 0.0
+        && distanceX < 300.0
+        && std::abs(dy) < 130.0
+        && standing) {
+        direction_ = dx >= 0.0 ? 1 : -1;
+        vel_.setX(direction_ * speed_ * 1.25);
+        vel_.setY(-620.0f);
+        jumpCd_ = 1.1;
     }
 
     vel_.setY(std::min(
@@ -303,6 +345,32 @@ void Enemy::update(
         direction_ *= -1;
     }
 
+    if (result.onGround && wantsToMove && std::abs(vel_.x()) > 1.0f) {
+        const double probeX =
+            vel_.x() > 0.0f
+            ? rect_.right() + 4.0
+            : rect_.left() - 8.0;
+
+        const QRectF groundProbe(
+            probeX,
+            rect_.bottom() + 2.0,
+            4.0,
+            12.0);
+
+        bool supported = false;
+        for (const QRectF &platform : platforms) {
+            if (groundProbe.intersects(platform)) {
+                supported = true;
+                break;
+            }
+        }
+
+        if (!supported) {
+            direction_ *= -1;
+            vel_.setX(0.0f);
+        }
+    }
+
     if (rect_.left() <= left_) {
         rect_.moveLeft(left_);
         direction_ = 1;
@@ -313,31 +381,81 @@ void Enemy::update(
         direction_ = -1;
     }
 
-    shootCd_ -= dt;
+    const bool canAim =
+        std::abs(dy) < 140.0
+        && distanceX < (kind_ == "boss" ? 700.0 : 620.0);
 
     if ((kind_ == "shooter" || kind_ == "boss")
-        && std::abs(dx) < 620
-        && shootCd_ <= 0) {
+        && canAim
+        && shootCd_ <= 0.0) {
         Projectile projectile;
         projectile.hostile = true;
-        projectile.rect =
-            QRectF(rect_.center().x(), rect_.top() + 25, 13, 7);
+        projectile.rect = QRectF(
+            direction_ > 0
+                ? rect_.right()
+                : rect_.left() - 13.0,
+            rect_.top() + 25.0,
+            13.0,
+            7.0);
         projectile.velocity = QVector2D(
-            (dx > 0 ? 1 : -1) * (kind_ == "boss" ? 500 : 380),
-            kind_ == "boss" ? -40 : 0);
+            direction_ * (kind_ == "boss" ? 500.0f : 390.0f),
+            kind_ == "boss" ? -40.0f : 0.0f);
+
         shots << projectile;
-        shootCd_ = kind_ == "boss" ? .65 : 1.35;
+        shootCd_ = kind_ == "boss" ? 0.65 : 1.35;
     }
 
     anim_ += dt;
-
     if (anim_ > .18) {
         anim_ -= .18;
         frame_ ^= 1;
     }
 }
 
-void Enemy::damage(int amount) { hp_ -= amount; }
+void Enemy::damage(int amount, double sourceX)
+{
+    if (hp_ <= 0) {
+        return;
+    }
+
+    hp_ -= amount;
+    hurtFlash_ = 0.16;
+    hitStun_ = 0.14;
+
+    const float recoilDirection =
+        rect_.center().x() < sourceX ? -1.0f : 1.0f;
+
+    vel_.setX(recoilDirection * 210.0f);
+    vel_.setY(-120.0f);
+}
+
+void Enemy::separateFrom(const QRectF &other)
+{
+    if (hp_ <= 0 || !rect_.intersects(other)) {
+        return;
+    }
+
+    const QRectF overlap = rect_.intersected(other);
+    if (overlap.width() <= 0.0 || overlap.height() <= 8.0) {
+        return;
+    }
+
+    const double push =
+        std::min(overlap.width() / 2.0 + 0.5, 6.0);
+
+    if (rect_.center().x() < other.center().x()) {
+        rect_.translate(-push, 0.0);
+    } else {
+        rect_.translate(push, 0.0);
+    }
+
+    if (rect_.left() < left_) {
+        rect_.moveLeft(left_);
+    }
+    if (rect_.right() > right_) {
+        rect_.moveRight(right_);
+    }
+}
 
 void Enemy::draw(QPainter &painter, double cameraX) const
 {
@@ -360,7 +478,12 @@ void Enemy::draw(QPainter &painter, double cameraX) const
         source.width(),
         source.height());
 
+    painter.save();
+    if (hurtFlash_ > 0.0) {
+        painter.setOpacity(0.45);
+    }
     painter.drawImage(target, sheet_->image(), source);
+    painter.restore();
 
     if (kind_ == "boss") {
         painter.fillRect(
@@ -382,6 +505,7 @@ void Enemy::draw(QPainter &painter, double cameraX) const
 
 QRectF Enemy::rect() const { return rect_; }
 bool Enemy::alive() const { return hp_ > 0; }
+
 int Enemy::reward() const
 {
     return kind_ == "boss" ? 1000
