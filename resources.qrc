@@ -4,4 +4,7 @@
  <file alias="levels/level1.txt">assets/levels/level1.txt</file>
  <file alias="levels/level2.txt">assets/levels/level2.txt</file>
  <file alias="levels/level3.txt">assets/levels/level3.txt</file>
+ <file alias="levels/level1.json">assets/levels/level1.json</file>
+ <file alias="levels/level2.json">assets/levels/level2.json</file>
+ <file alias="levels/level3.json">assets/levels/level3.json</file>
 </qresource></RCC>
