@@ -1,33 +1,769 @@
 #include "world.h"
+
 #include <QApplication>
 #include <QPainter>
+#include <QLinearGradient>
+#include <QRadialGradient>
 #include <QRandomGenerator>
 #include <QSettings>
 #include <QtMath>
+
 #include <algorithm>
-World::World(const SpriteSheet*p,const SpriteSheet*e):playerSheet_(p),enemySheet_(e),player_(p){}
-bool World::loadLevel(int index){levelIndex_=std::clamp(index,0,2);if(!level_.load(QString(":/levels/level%1.txt").arg(levelIndex_+1)))return false;player_.reset(level_.playerSpawn(),true);respawn_=level_.playerSpawn();enemies_.clear();for(const auto&s:level_.enemies())enemies_<<Enemy(enemySheet_,s.kind,s.position,s.leftLimit,s.rightLimit);moving_.clear();for(const auto&s:level_.moving())moving_<<MovingPlatform{s.rect,s.minX,s.maxX,s.speedX,s.speedY,1,{}};coins_.clear();for(auto p:level_.coins())coins_<<Coin{QRectF(p.x(),p.y(),24,24),false,p.x()*.01};pickups_.clear();for(const auto&s:level_.pickups())pickups_<<Pickup{s.kind,QRectF(s.position.x(),s.position.y(),28,28),false};doors_.clear();for(const auto&s:level_.doors())doors_<<Door{s.key,s.rect,false};switches_.clear();for(const auto&s:level_.switches())switches_<<SwitchObj{s.key,QRectF(s.position.x(),s.position.y(),32,25),false};keys_.clear();for(const auto&s:level_.keys())keys_<<KeyObj{s.key,QRectF(s.position.x(),s.position.y(),26,18),false};projectiles_.clear();particles_.clear();completed_=gameOver_=false;message_=level_.name();messageTime_=2.5;rebuildCollision();return true;}
-void World::resetFromCheckpoint(){player_.reset(respawn_,false);gameOver_=false;projectiles_.clear();message_="Checkpoint restart";messageTime_=1.5;}
-void World::rebuildCollision(){collision_=level_.platforms();for(const auto&m:moving_)collision_<<m.rect;for(const auto&d:doors_)if(!d.open)collision_<<d.rect;}
-void World::update(double dt){if(completed_||gameOver_)return;for(auto&m:moving_){QPointF old=m.rect.topLeft();m.rect.translate(m.speedX*m.dir*dt,m.speedY*m.dir*dt);if((m.speedX!=0&&(m.rect.left()<m.minX||m.rect.left()>m.maxX))||(m.speedY!=0&&(m.rect.top()<250||m.rect.top()>520))){m.dir*=-1;m.rect.moveTopLeft(old);}m.delta=m.rect.topLeft()-old;if(QRectF(player_.rect().translated(0,2)).intersects(m.rect)){} }rebuildCollision();player_.update(dt,collision_,level_.ladders(),level_.worldSize().width());for(auto&e:enemies_)e.update(dt,collision_,player_.rect().center(),projectiles_);
- for(auto&c:coins_){c.phase+=dt*4;if(!c.collected&&player_.rect().intersects(c.rect)){c.collected=true;player_.addScore(10);explode(c.rect.center(),Qt::yellow);beep();}}
- for(auto&p:pickups_)if(!p.taken&&player_.rect().intersects(p.rect)){p.taken=true;if(p.kind=="health")player_.heal(2);else player_.addAmmo(12);message_=p.kind=="health"?"Health restored":"Ammo +12";messageTime_=1.5;beep();}
- for(auto&k:keys_)if(!k.taken&&player_.rect().intersects(k.rect)){k.taken=true;player_.addKey(k.key);message_=k.key+" key acquired";messageTime_=2;beep();}
- for(auto&d:doors_)if(!d.open&&player_.hasKey(d.key)&&player_.rect().adjusted(-8,-8,8,8).intersects(d.rect)){d.open=true;message_=d.key+" door unlocked";messageTime_=2;beep();rebuildCollision();}
- for(const auto&s:level_.spikes())if(player_.rect().intersects(s))player_.damage(s.center().x());
- for(auto&b:projectiles_){if(!b.alive)continue;b.life-=dt;b.rect.translate(b.velocity.x()*dt,b.velocity.y()*dt);if(b.life<=0||intersectsAny(b.rect,collision_)){b.alive=false;explode(b.rect.center(),Qt::lightGray);continue;}if(b.hostile){if(b.rect.intersects(player_.rect())){player_.damage(b.rect.center().x());b.alive=false;explode(b.rect.center(),Qt::red);}}else for(auto&e:enemies_)if(e.alive()&&b.rect.intersects(e.rect())){e.damage(1);b.alive=false;explode(b.rect.center(),Qt::yellow);if(!e.alive()){player_.addScore(e.reward());explode(e.rect().center(),Qt::red);beep();}break;}}
- for(auto&p:particles_){p.life-=dt;p.pos+=p.velocity.toPointF()*dt;p.velocity.setY(p.velocity.y()+400*dt);}projectiles_.erase(std::remove_if(projectiles_.begin(),projectiles_.end(),[](const Projectile&p){return !p.alive;}),projectiles_.end());particles_.erase(std::remove_if(particles_.begin(),particles_.end(),[](const Particle&p){return p.life<=0;}),particles_.end());
- if(level_.checkpoint().x()>=0&&player_.rect().center().x()>level_.checkpoint().x()&&respawn_!=level_.checkpoint()){respawn_=level_.checkpoint();checkpoint();}
- if(player_.rect().intersects(level_.goal())){completed_=true;message_="Level complete!";QSettings s("OpenAI","Izotopepa");s.setValue("unlockedLevel",std::max(s.value("unlockedLevel",0).toInt(),levelIndex_+1));beep();}
- if(player_.dead()||player_.rect().top()>level_.worldSize().height()+100)gameOver_=true;if(messageTime_>0)messageTime_-=dt;else message_.clear();}
-void World::setInput(bool l,bool r,bool u,bool d){player_.setLeft(l);player_.setRight(r);player_.setUp(u);player_.setDown(d);}void World::jump(){if(!completed_&&!gameOver_)player_.jump();}void World::shoot(){if(!completed_&&!gameOver_&&player_.canShoot()){projectiles_<<player_.shoot();beep();}}void World::interact(){for(auto&s:switches_)if(!s.active&&player_.rect().adjusted(-25,-10,25,10).intersects(s.rect)){s.active=true;for(auto&d:doors_)if(d.key==s.key)d.open=true;message_="Switch activated";messageTime_=1.5;rebuildCollision();beep();}}
-void World::explode(QPointF at,QColor c){for(int i=0;i<10;++i){double a=QRandomGenerator::global()->generateDouble()*6.283;double sp=60+QRandomGenerator::global()->bounded(170);particles_<<Particle{at,QVector2D(qCos(a)*sp,qSin(a)*sp),.35+QRandomGenerator::global()->generateDouble()*.45,3+QRandomGenerator::global()->bounded(5),c};}}
-void World::checkpoint(){message_="Checkpoint reached";messageTime_=2;beep();}void World::beep()const{if(sound_)QApplication::beep();}
-void World::draw(QPainter&p,double cx)const{for(const auto&platform:level_.platforms()){QRectF r=platform.translated(-cx,0);p.fillRect(r,platform.height()>=60?QColor(70,110,50):QColor(110,78,45));QRectF top=r;top.setHeight(qMin(7.0,r.height()));p.fillRect(top,platform.height()>=60?QColor(120,175,75):QColor(180,135,75));}for(const auto&l:level_.ladders()){QRectF r=l.translated(-cx,0);p.fillRect(r,QColor(135,90,45));p.setPen(QPen(QColor(220,180,100),3));for(double y=r.top()+8;y<r.bottom();y+=18)p.drawLine(QPointF(r.left(),y),QPointF(r.right(),y));}
- for(const auto&m:moving_){QRectF r=m.rect.translated(-cx,0);p.fillRect(r,QColor(95,75,120));p.fillRect(QRectF(r.left(),r.top(),r.width(),5),QColor(185,150,220));}
- for(const auto&s:level_.spikes()){QRectF r=s.translated(-cx,0);QPolygonF poly;double step=20;for(double x=r.left();x<r.right();x+=step)poly<<QPointF(x,r.bottom())<<QPointF(x+step/2,r.top())<<QPointF(x+step,r.bottom());p.setBrush(Qt::darkGray);p.setPen(Qt::NoPen);p.drawPolygon(poly);}
- for(const auto&c:coins_)if(!c.collected){QPointF q(c.rect.center().x()-cx,c.rect.center().y()+qSin(c.phase)*4);p.setBrush(Qt::yellow);p.setPen(QPen(QColor(180,120,0),3));p.drawEllipse(q,11,11);}for(const auto&u:pickups_)if(!u.taken){QRectF r=u.rect.translated(-cx,0);p.setBrush(u.kind=="health"?Qt::red:Qt::cyan);p.setPen(Qt::white);p.drawRoundedRect(r,5,5);p.drawText(r,Qt::AlignCenter,u.kind=="health"?"+":"A");}
- for(const auto&k:keys_)if(!k.taken){QRectF r=k.rect.translated(-cx,0);p.setPen(QPen(Qt::yellow,4));p.drawLine(r.left(),r.center().y(),r.right(),r.center().y());p.drawEllipse(QPointF(r.left()+4,r.center().y()),5,5);}
- for(const auto&d:doors_)if(!d.open){QRectF r=d.rect.translated(-cx,0);p.fillRect(r,QColor(90,55,25));p.setPen(QPen(QColor(220,170,70),3));p.drawRect(r);p.drawEllipse(QPointF(r.right()-12,r.center().y()),3,3);}for(const auto&s:switches_){QRectF r=s.rect.translated(-cx,0);p.fillRect(r,s.active?Qt::green:Qt::darkRed);}
- for(const auto&e:enemies_)e.draw(p,cx);for(const auto&b:projectiles_)p.fillRect(b.rect.translated(-cx,0),b.hostile?Qt::red:Qt::yellow);for(const auto&q:particles_){p.setBrush(q.color);p.setPen(Qt::NoPen);p.drawEllipse(QPointF(q.pos.x()-cx,q.pos.y()),q.size,q.size);}player_.draw(p,cx);}
-Player&World::player(){return player_;}const Player&World::player()const{return player_;}double World::width()const{return level_.worldSize().width();}QString World::levelName()const{return level_.name();}int World::levelIndex()const{return levelIndex_;}bool World::completed()const{return completed_;}bool World::gameOver()const{return gameOver_;}void World::toggleSound(){sound_=!sound_;}bool World::soundEnabled()const{return sound_;}QString World::message()const{return message_;}
+
+namespace {
+constexpr double kPlatformCapWidth = 12.0;
+constexpr double kLadderRailWidth = 5.0;
+constexpr double kLadderRungSpacing = 14.0;
+
+void drawStaticPlatform(QPainter &painter, const QRectF &rect)
+{
+    const bool ground = rect.height() >= 60.0;
+    const QColor body = ground ? QColor(70, 110, 50) : QColor(110, 78, 45);
+    const QColor top = ground ? QColor(120, 175, 75) : QColor(180, 135, 75);
+    const QColor edge = ground ? QColor(52, 86, 39) : QColor(82, 55, 31);
+    const QColor detail = ground ? QColor(83, 132, 59) : QColor(137, 96, 52);
+
+    painter.fillRect(rect, body);
+    painter.fillRect(QRectF(rect.left(), rect.top(), rect.width(), qMin(8.0, rect.height())), top);
+
+    const double cap = qMin(kPlatformCapWidth, rect.width() / 2.0);
+    painter.fillRect(QRectF(rect.left(), rect.top(), cap, rect.height()), edge);
+    painter.fillRect(QRectF(rect.right() - cap, rect.top(), cap, rect.height()), edge);
+
+    painter.setPen(QPen(detail, 2.0));
+    for (double x = rect.left() + cap + 10.0; x < rect.right() - cap; x += 30.0) {
+        painter.drawLine(QPointF(x, rect.top() + 13.0),
+                         QPointF(x + 8.0, rect.top() + 13.0));
+    }
+}
+
+void drawLadder(QPainter &painter, const QRectF &rect)
+{
+    if (rect.width() <= 0.0 || rect.height() <= 0.0) {
+        return;
+    }
+
+    const QColor darkWood(95, 56, 27);
+    const QColor wood(151, 93, 43);
+    const QColor highlight(221, 165, 91);
+
+    const double railInset = qMax(2.0, rect.width() * 0.15);
+    const QRectF leftRail(rect.left() + railInset, rect.top(), kLadderRailWidth, rect.height());
+    const QRectF rightRail(rect.right() - railInset - kLadderRailWidth,
+                           rect.top(), kLadderRailWidth, rect.height());
+
+    painter.fillRect(leftRail.adjusted(-1.0, 0.0, 1.0, 0.0), darkWood);
+    painter.fillRect(rightRail.adjusted(-1.0, 0.0, 1.0, 0.0), darkWood);
+    painter.fillRect(leftRail, wood);
+    painter.fillRect(rightRail, wood);
+
+    painter.setPen(QPen(darkWood, 6.0, Qt::SolidLine, Qt::SquareCap));
+    for (double y = rect.top() + 7.0; y <= rect.bottom(); y += kLadderRungSpacing) {
+        painter.drawLine(QPointF(leftRail.center().x(), y),
+                         QPointF(rightRail.center().x(), y));
+    }
+
+    painter.setPen(QPen(highlight, 2.0, Qt::SolidLine, Qt::SquareCap));
+    for (double y = rect.top() + 6.0; y <= rect.bottom(); y += kLadderRungSpacing) {
+        painter.drawLine(QPointF(leftRail.center().x(), y),
+                         QPointF(rightRail.center().x(), y));
+    }
+}
+
+void drawMovingPlatform(QPainter &painter, const QRectF &rect)
+{
+    if (rect.width() <= 0.0 || rect.height() <= 0.0) {
+        return;
+    }
+
+    const QColor outline(54, 45, 67);
+    const QColor endCap(77, 62, 94);
+    const QColor middle(111, 86, 132);
+    const QColor top(188, 153, 220);
+    const QColor seam(81, 62, 99);
+
+    painter.fillRect(rect, outline);
+    const QRectF inner = rect.adjusted(2.0, 2.0, -2.0, -2.0);
+    painter.fillRect(inner, middle);
+
+    const double cap = qMin(14.0, inner.width() / 2.0);
+    painter.fillRect(QRectF(inner.left(), inner.top(), cap, inner.height()), endCap);
+    painter.fillRect(QRectF(inner.right() - cap, inner.top(), cap, inner.height()), endCap);
+    painter.fillRect(QRectF(inner.left(), inner.top(), inner.width(), qMin(6.0, inner.height())), top);
+
+    painter.setPen(QPen(seam, 2.0));
+    for (double x = inner.left() + cap + 18.0; x < inner.right() - cap; x += 28.0) {
+        painter.drawLine(QPointF(x, inner.top() + 8.0),
+                         QPointF(x, inner.bottom() - 4.0));
+    }
+
+    painter.setBrush(QColor(215, 190, 230));
+    painter.setPen(QPen(outline, 1.0));
+    painter.drawEllipse(QPointF(inner.left() + cap / 2.0, inner.center().y()), 2.5, 2.5);
+    painter.drawEllipse(QPointF(inner.right() - cap / 2.0, inner.center().y()), 2.5, 2.5);
+}
+}
+
+World::World(const SpriteSheet *playerSheet, const SpriteSheet *enemySheet)
+    : playerSheet_(playerSheet),
+      enemySheet_(enemySheet),
+      player_(playerSheet)
+{
+}
+
+bool World::loadLevel(int index)
+{
+    levelIndex_ = std::clamp(index, 0, 2);
+    if (!level_.load(QString(":/levels/level%1.txt").arg(levelIndex_ + 1))) {
+        return false;
+    }
+
+    player_.reset(level_.playerSpawn(), true);
+    respawn_ = level_.playerSpawn();
+
+    enemies_.clear();
+    for (const auto &spawn : level_.enemies()) {
+        enemies_ << Enemy(enemySheet_, spawn.kind, spawn.position,
+                          spawn.leftLimit, spawn.rightLimit);
+    }
+
+    moving_.clear();
+    for (const auto &spawn : level_.moving()) {
+        moving_ << MovingPlatform{spawn.rect, spawn.minX, spawn.maxX,
+                                  spawn.speedX, spawn.speedY, 1, {}};
+    }
+
+    coins_.clear();
+    for (const auto &position : level_.coins()) {
+        coins_ << Coin{QRectF(position.x(), position.y(), 24, 24),
+                       false, position.x() * .01};
+    }
+
+    pickups_.clear();
+    for (const auto &spawn : level_.pickups()) {
+        pickups_ << Pickup{spawn.kind,
+                           QRectF(spawn.position.x(), spawn.position.y(), 28, 28),
+                           false};
+    }
+
+    doors_.clear();
+    for (const auto &spawn : level_.doors()) {
+        doors_ << Door{spawn.key, spawn.rect, false};
+    }
+
+    switches_.clear();
+    for (const auto &spawn : level_.switches()) {
+        switches_ << SwitchObj{spawn.key,
+                               QRectF(spawn.position.x(), spawn.position.y(), 32, 25),
+                               false};
+    }
+
+    keys_.clear();
+    for (const auto &spawn : level_.keys()) {
+        keys_ << KeyObj{spawn.key,
+                        QRectF(spawn.position.x(), spawn.position.y(), 26, 18),
+                        false};
+    }
+
+    projectiles_.clear();
+    particles_.clear();
+    completed_ = false;
+    gameOver_ = false;
+    message_ = level_.name();
+    messageTime_ = 2.5;
+    rebuildCollision();
+    return true;
+}
+
+void World::resetFromCheckpoint()
+{
+    player_.reset(respawn_, false);
+    gameOver_ = false;
+    projectiles_.clear();
+    message_ = "Checkpoint restart";
+    messageTime_ = 1.5;
+}
+
+void World::rebuildCollision()
+{
+    collision_ = level_.platforms();
+    for (const auto &platform : moving_) {
+        collision_ << platform.rect;
+    }
+    for (const auto &door : doors_) {
+        if (!door.open) {
+            collision_ << door.rect;
+        }
+    }
+}
+
+void World::update(double dt)
+{
+    if (completed_ || gameOver_) {
+        return;
+    }
+    animationTime_ += dt;
+    shakeTime_ = std::max(0.0, shakeTime_ - dt);
+    if (shakeTime_ <= 0.0) {
+        shakeStrength_ = 0.0;
+    }
+
+    // Move platforms before ordinary player physics. A player standing on
+    // a platform's previous top surface receives the same displacement.
+    for (int index = 0; index < moving_.size(); ++index) {
+        MovingPlatform &platform = moving_[index];
+
+        const QRectF oldRect = platform.rect;
+        const QPointF oldPosition = oldRect.topLeft();
+
+        const QRectF playerFeet(
+            player_.rect().left() + 5.0,
+            player_.rect().bottom() - 4.0,
+            player_.rect().width() - 10.0,
+            8.0);
+
+        const bool riding =
+            playerFeet.intersects(oldRect)
+            && player_.rect().bottom() <= oldRect.top() + 5.0;
+
+        platform.rect.translate(
+            platform.speedX * platform.dir * dt,
+            platform.speedY * platform.dir * dt);
+
+        const bool outsideHorizontal =
+            platform.speedX != 0
+            && (platform.rect.left() < platform.minX
+                || platform.rect.left() > platform.maxX);
+
+        const bool outsideVertical =
+            platform.speedY != 0
+            && (platform.rect.top() < 250
+                || platform.rect.top() > 520);
+
+        if (outsideHorizontal || outsideVertical) {
+            platform.dir *= -1;
+            platform.rect.moveTopLeft(oldPosition);
+        }
+
+        platform.delta =
+            platform.rect.topLeft() - oldPosition;
+
+        if (riding && !platform.delta.isNull()) {
+            QVector<QRectF> blockers = level_.platforms();
+
+            for (const Door &door : doors_) {
+                if (!door.open) {
+                    blockers << door.rect;
+                }
+            }
+
+            for (int other = 0; other < moving_.size(); ++other) {
+                if (other != index) {
+                    blockers << moving_[other].rect;
+                }
+            }
+
+            if (!player_.carryBy(platform.delta, blockers)) {
+                player_.damage(platform.rect.center().x());
+                platform.dir *= -1;
+                platform.rect = oldRect;
+                platform.delta = {};
+            }
+        }
+    }
+    rebuildCollision();
+    player_.update(dt, collision_, level_.ladders(), level_.worldSize().width());
+    for (auto &enemy : enemies_) {
+        enemy.update(
+            dt,
+            collision_,
+            player_.rect().center(),
+            projectiles_);
+    }
+
+    for (int first = 0; first < enemies_.size(); ++first) {
+        if (!enemies_[first].alive()) {
+            continue;
+        }
+
+        for (int second = first + 1; second < enemies_.size(); ++second) {
+            if (!enemies_[second].alive()) {
+                continue;
+            }
+
+            const QRectF firstRect = enemies_[first].rect();
+            const QRectF secondRect = enemies_[second].rect();
+
+            enemies_[first].separateFrom(secondRect);
+            enemies_[second].separateFrom(firstRect);
+        }
+    }
+
+    for (auto &coin : coins_) {
+        coin.phase += dt * 4;
+        if (!coin.collected && player_.rect().intersects(coin.rect)) {
+            coin.collected = true;
+            player_.addScore(10);
+            explode(coin.rect.center(), Qt::yellow);
+            beep();
+        }
+    }
+
+    for (auto &pickup : pickups_) {
+        if (!pickup.taken && player_.rect().intersects(pickup.rect)) {
+            pickup.taken = true;
+            if (pickup.kind == "health") {
+                player_.heal(2);
+            } else {
+                player_.addAmmo(12);
+            }
+            message_ = pickup.kind == "health" ? "Health restored" : "Ammo +12";
+            messageTime_ = 1.5;
+            beep();
+        }
+    }
+
+    for (auto &key : keys_) {
+        if (!key.taken && player_.rect().intersects(key.rect)) {
+            key.taken = true;
+            player_.addKey(key.key);
+            message_ = key.key + " key acquired";
+            messageTime_ = 2;
+            beep();
+        }
+    }
+
+    for (auto &door : doors_) {
+        if (!door.open && player_.hasKey(door.key)
+            && player_.rect().adjusted(-8, -8, 8, 8).intersects(door.rect)) {
+            door.open = true;
+            message_ = door.key + " door unlocked";
+            messageTime_ = 2;
+            beep();
+            rebuildCollision();
+        }
+    }
+
+    for (const auto &spike : level_.spikes()) {
+        if (player_.rect().intersects(spike)) {
+            player_.damage(spike.center().x());
+        }
+    }
+
+    for (auto &projectile : projectiles_) {
+        if (!projectile.alive) {
+            continue;
+        }
+
+        projectile.life -= dt;
+        projectile.rect.translate(projectile.velocity.x() * dt,
+                                  projectile.velocity.y() * dt);
+
+        if (projectile.life <= 0 || intersectsAny(projectile.rect, collision_)) {
+            projectile.alive = false;
+            explode(projectile.rect.center(), Qt::lightGray);
+            continue;
+        }
+
+        if (projectile.hostile) {
+            if (projectile.rect.intersects(player_.rect())) {
+                player_.damage(projectile.rect.center().x());
+                shakeTime_ = std::max(shakeTime_, 0.18);
+                shakeStrength_ = std::max(shakeStrength_, 5.0);
+                projectile.alive = false;
+                explode(projectile.rect.center(), Qt::red);
+            }
+        } else {
+            for (auto &enemy : enemies_) {
+                if (enemy.alive() && projectile.rect.intersects(enemy.rect())) {
+                    enemy.damage(1, projectile.rect.center().x());
+                    shakeTime_ = std::max(shakeTime_, 0.10);
+                    shakeStrength_ = std::max(shakeStrength_, 3.0);
+                    projectile.alive = false;
+                    explode(projectile.rect.center(), Qt::yellow);
+                    if (!enemy.alive()) {
+                        player_.addScore(enemy.reward());
+                        explode(enemy.rect().center(), Qt::red);
+                        explode(
+                            enemy.rect().center() + QPointF(10, -12),
+                            QColor(255, 170, 40));
+                        shakeTime_ = std::max(shakeTime_, 0.30);
+                        shakeStrength_ = std::max(shakeStrength_, 8.0);
+                        beep();
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    for (auto &particle : particles_) {
+        particle.life -= dt;
+        particle.pos += particle.velocity.toPointF() * dt;
+        particle.velocity.setY(particle.velocity.y() + 400 * dt);
+    }
+
+    projectiles_.erase(std::remove_if(projectiles_.begin(), projectiles_.end(),
+                                      [](const Projectile &p) { return !p.alive; }),
+                       projectiles_.end());
+    particles_.erase(std::remove_if(particles_.begin(), particles_.end(),
+                                    [](const Particle &p) { return p.life <= 0; }),
+                     particles_.end());
+
+    if (level_.checkpoint().x() >= 0
+        && player_.rect().center().x() > level_.checkpoint().x()
+        && respawn_ != level_.checkpoint()) {
+        respawn_ = level_.checkpoint();
+        checkpoint();
+    }
+
+    if (player_.rect().intersects(level_.goal())) {
+        completed_ = true;
+        message_ = "Level complete!";
+        QSettings settings("OpenAI", "Izotopepa");
+        settings.setValue("unlockedLevel",
+                          std::max(settings.value("unlockedLevel", 0).toInt(),
+                                   levelIndex_ + 1));
+        beep();
+    }
+
+    if (player_.dead() || player_.rect().top() > level_.worldSize().height() + 100) {
+        gameOver_ = true;
+    }
+
+    if (messageTime_ > 0) {
+        messageTime_ -= dt;
+    } else {
+        message_.clear();
+    }
+}
+
+void World::setInput(bool left, bool right, bool up, bool down)
+{
+    player_.setLeft(left);
+    player_.setRight(right);
+    player_.setUp(up);
+    player_.setDown(down);
+}
+
+void World::jump()
+{
+    if (!completed_ && !gameOver_) {
+        player_.jump();
+    }
+}
+
+void World::stopJump()
+{
+    if (!completed_ && !gameOver_) {
+        player_.stopJump();
+    }
+}
+
+void World::shoot()
+{
+    if (!completed_ && !gameOver_ && player_.canShoot()) {
+        projectiles_ << player_.shoot();
+        shakeTime_ = std::max(shakeTime_, 0.08);
+        shakeStrength_ = std::max(shakeStrength_, 2.0);
+        beep();
+    }
+}
+
+void World::interact()
+{
+    for (auto &switchObject : switches_) {
+        if (!switchObject.active
+            && player_.rect().adjusted(-25, -10, 25, 10).intersects(switchObject.rect)) {
+            switchObject.active = true;
+            for (auto &door : doors_) {
+                if (door.key == switchObject.key) {
+                    door.open = true;
+                }
+            }
+            message_ = "Switch activated";
+            messageTime_ = 1.5;
+            rebuildCollision();
+            beep();
+        }
+    }
+}
+
+void World::explode(QPointF at, QColor color)
+{
+    for (int i = 0; i < 10; ++i) {
+        const double angle = QRandomGenerator::global()->generateDouble() * 6.283;
+        const double speed = 60 + QRandomGenerator::global()->bounded(170);
+        particles_ << Particle{at,
+                               QVector2D(qCos(angle) * speed, qSin(angle) * speed),
+                               .35 + QRandomGenerator::global()->generateDouble() * .45,
+                               3 + QRandomGenerator::global()->bounded(5),
+                               color};
+    }
+}
+
+void World::checkpoint()
+{
+    message_ = "Checkpoint reached";
+    messageTime_ = 2;
+    beep();
+}
+
+void World::beep() const
+{
+    if (sound_) {
+        QApplication::beep();
+    }
+}
+
+void World::draw(QPainter &painter, double cameraX) const
+{
+    painter.save();
+
+    const QPointF shakeOffset(
+        qSin(shakeTime_ * 91.0) * shakeStrength_,
+        qCos(shakeTime_ * 73.0) * shakeStrength_ * 0.65);
+
+    painter.translate(shakeOffset);
+
+    for (const auto &platform : level_.platforms()) {
+        drawStaticPlatform(painter, platform.translated(-cameraX, 0));
+    }
+
+    for (const auto &ladder : level_.ladders()) {
+        drawLadder(painter, ladder.translated(-cameraX, 0));
+    }
+
+    for (const auto &platform : moving_) {
+        drawMovingPlatform(painter, platform.rect.translated(-cameraX, 0));
+    }
+
+    for (const auto &spike : level_.spikes()) {
+        const QRectF rect = spike.translated(-cameraX, 0);
+        QPolygonF polygon;
+        const double step = 20;
+        for (double x = rect.left(); x < rect.right(); x += step) {
+            polygon << QPointF(x, rect.bottom())
+                    << QPointF(x + step / 2, rect.top())
+                    << QPointF(x + step, rect.bottom());
+        }
+        painter.setBrush(Qt::darkGray);
+        painter.setPen(Qt::NoPen);
+        painter.drawPolygon(polygon);
+    }
+
+    for (const auto &coin : coins_) {
+        if (coin.collected) {
+            continue;
+        }
+
+        const QPointF center(coin.rect.center().x() - cameraX,
+                             coin.rect.center().y() + qSin(coin.phase) * 4);
+        const double halfWidth = 2.5 + 8.5 * qAbs(qCos(coin.phase));
+        const QRectF coinRect(center.x() - halfWidth, center.y() - 11,
+                              halfWidth * 2, 22);
+
+        painter.setBrush(QColor(255, 220, 35));
+        painter.setPen(QPen(QColor(180, 120, 0), 3));
+        painter.drawEllipse(coinRect);
+
+        if (halfWidth > 5.0) {
+            painter.setPen(QPen(QColor(255, 245, 150), 2));
+            painter.drawArc(coinRect.adjusted(4, 3, -4, -3), 70 * 16, 80 * 16);
+        }
+    }
+
+    for (int index = 0; index < pickups_.size(); ++index) {
+        const Pickup &pickup = pickups_[index];
+        if (pickup.taken) {
+            continue;
+        }
+
+        QRectF rect = pickup.rect.translated(-cameraX, 0);
+        rect.translate(0, qSin(animationTime_ * 4.0 + index * 1.7) * 4.0);
+
+        const QColor color = pickup.kind == "health"
+            ? QColor(220, 45, 65)
+            : QColor(40, 190, 235);
+
+        QRadialGradient glow(rect.center(), 28);
+        glow.setColorAt(0.0, QColor(color.red(), color.green(), color.blue(), 100));
+        glow.setColorAt(1.0, QColor(color.red(), color.green(), color.blue(), 0));
+
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(glow);
+        painter.drawEllipse(rect.center(), 28, 28);
+
+        painter.setBrush(color);
+        painter.setPen(QPen(Qt::white, 2));
+        painter.drawRoundedRect(rect, 6, 6);
+        painter.drawText(rect, Qt::AlignCenter, pickup.kind == "health" ? "+" : "A");
+    }
+    for (int index = 0; index < keys_.size(); ++index) {
+        const KeyObj &key = keys_[index];
+        if (key.taken) {
+            continue;
+        }
+
+        const QRectF rect = key.rect.translated(-cameraX, 0);
+        const QPointF center(
+            rect.center().x(),
+            rect.center().y() + qSin(animationTime_ * 3.5 + index) * 4.0);
+
+        const double widthScale =
+            0.25 + 0.75 * qAbs(qCos(animationTime_ * 2.8 + index));
+        const double halfLength = rect.width() * 0.5 * widthScale;
+
+        painter.setPen(QPen(QColor(255, 220, 50), 4, Qt::SolidLine, Qt::RoundCap));
+        painter.drawLine(
+            QPointF(center.x() - halfLength, center.y()),
+            QPointF(center.x() + halfLength, center.y()));
+        painter.drawEllipse(
+            QPointF(center.x() - halfLength + 3.0, center.y()),
+            5.0 * widthScale + 1.0,
+            5.0);
+    }
+    for (const auto &door : doors_) {
+        if (door.open) {
+            continue;
+        }
+        const QRectF rect = door.rect.translated(-cameraX, 0);
+        painter.fillRect(rect, QColor(90, 55, 25));
+        painter.setPen(QPen(QColor(220, 170, 70), 3));
+        painter.drawRect(rect);
+        painter.drawEllipse(QPointF(rect.right() - 12, rect.center().y()), 3, 3);
+    }
+
+    for (int index = 0; index < switches_.size(); ++index) {
+        const SwitchObj &switchObject = switches_[index];
+        const QRectF rect = switchObject.rect.translated(-cameraX, 0);
+        const QColor color = switchObject.active
+            ? QColor(60, 225, 90)
+            : QColor(170, 45, 45);
+
+        const double glowRadius = 22.0
+            + qSin(animationTime_ * 5.0 + index) * 3.0;
+
+        QRadialGradient glow(rect.center(), glowRadius);
+        glow.setColorAt(0.0, QColor(color.red(), color.green(), color.blue(), 110));
+        glow.setColorAt(1.0, QColor(color.red(), color.green(), color.blue(), 0));
+
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(glow);
+        painter.drawEllipse(rect.center(), glowRadius, glowRadius);
+
+        painter.setBrush(QColor(45, 45, 55));
+        painter.setPen(QPen(QColor(20, 20, 25), 2));
+        painter.drawRoundedRect(rect, 4, 4);
+
+        painter.setBrush(color);
+        painter.setPen(QPen(Qt::white, 1));
+        painter.drawRoundedRect(rect.adjusted(7, 5, -7, -5), 3, 3);
+    }
+
+    if (level_.checkpoint().x() >= 0.0) {
+        const QPointF base(
+            level_.checkpoint().x() - cameraX,
+            level_.checkpoint().y());
+
+        painter.setPen(QPen(QColor(65, 55, 45), 5));
+        painter.drawLine(base, base + QPointF(0, -72));
+
+        const double wave = qSin(animationTime_ * 4.0) * 4.0;
+        QPolygonF flag;
+        flag << base + QPointF(2, -70)
+             << base + QPointF(42 + wave, -58)
+             << base + QPointF(2, -46);
+
+        painter.setBrush(QColor(70, 210, 245));
+        painter.setPen(QPen(Qt::white, 2));
+        painter.drawPolygon(flag);
+    }
+
+    {
+        const QRectF goal = level_.goal().translated(-cameraX, 0);
+        const QPointF pole(goal.left() + 10.0, goal.bottom());
+
+        painter.setPen(QPen(QColor(45, 45, 50), 6));
+        painter.drawLine(pole, QPointF(pole.x(), goal.top()));
+
+        const double wave = qSin(animationTime_ * 4.5) * 5.0;
+        QPolygonF flag;
+        flag << QPointF(pole.x() + 3.0, goal.top() + 4.0)
+             << QPointF(pole.x() + 48.0 + wave, goal.top() + 18.0)
+             << QPointF(pole.x() + 3.0, goal.top() + 34.0);
+
+        painter.setBrush(QColor(235, 70, 65));
+        painter.setPen(QPen(QColor(255, 225, 180), 2));
+        painter.drawPolygon(flag);
+    }
+
+    for (const auto &enemy : enemies_) {
+        enemy.draw(painter, cameraX);
+    }
+
+    for (const auto &projectile : projectiles_) {
+        const QRectF projectileRect =
+            projectile.rect.translated(-cameraX, 0);
+
+        const double trailLength =
+            std::clamp(
+                std::abs(projectile.velocity.x()) * 0.035,
+                12.0,
+                28.0);
+
+        QRectF trail = projectileRect;
+
+        if (projectile.velocity.x() > 0.0f) {
+            trail.setLeft(trail.left() - trailLength);
+        } else {
+            trail.setRight(trail.right() + trailLength);
+        }
+
+        QLinearGradient gradient(
+            projectile.velocity.x() > 0.0f
+                ? trail.topLeft()
+                : trail.topRight(),
+            projectile.velocity.x() > 0.0f
+                ? trail.topRight()
+                : trail.topLeft());
+
+        const QColor core =
+            projectile.hostile
+                ? QColor(255, 70, 40)
+                : QColor(255, 235, 80);
+
+        gradient.setColorAt(
+            0.0,
+            QColor(
+                core.red(),
+                core.green(),
+                core.blue(),
+                0));
+        gradient.setColorAt(1.0, core);
+
+        painter.fillRect(trail, gradient);
+        painter.fillRect(projectileRect, core);
+    }
+
+    for (const auto &particle : particles_) {
+        painter.setBrush(particle.color);
+        painter.setPen(Qt::NoPen);
+        painter.drawEllipse(QPointF(particle.pos.x() - cameraX, particle.pos.y()),
+                            particle.size, particle.size);
+    }
+
+    player_.draw(painter, cameraX);
+    painter.restore();
+}
+
+Player &World::player() { return player_; }
+const Player &World::player() const { return player_; }
+double World::width() const { return level_.worldSize().width(); }
+QString World::levelName() const { return level_.name(); }
+int World::levelIndex() const { return levelIndex_; }
+bool World::completed() const { return completed_; }
+bool World::gameOver() const { return gameOver_; }
+void World::toggleSound() { sound_ = !sound_; }
+bool World::soundEnabled() const { return sound_; }
+QString World::message() const { return message_; }

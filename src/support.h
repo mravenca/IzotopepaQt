@@ -8,5 +8,21 @@ class SpriteSheet { public: SpriteSheet()=default; SpriteSheet(QImage,int,int); 
 QImage loadTransparentImage(const QString&,int threshold=250);
 struct MoveResult { bool onGround=false, hitWall=false, hitCeiling=false; };
 MoveResult moveAndCollide(QRectF&,QVector2D&,double,const QVector<QRectF>&);
-class Camera { public: void configure(double,double); void update(double,double); void reset(double=0); double x()const; private: double x_=0,vw_=960,ww_=960; };
+class Camera {
+public:
+    void configure(double viewportWidth, double worldWidth);
+
+    // movementHint is -1 for left, 0 for idle and +1 for right.
+    void update(double targetX, double movementHint, double dt);
+
+    void reset(double x = 0);
+    double x() const;
+    double lookAhead() const;
+
+private:
+    double x_ = 0;
+    double vw_ = 960;
+    double ww_ = 960;
+    double lookAhead_ = 0;
+};
 bool intersectsAny(const QRectF&,const QVector<QRectF>&);
