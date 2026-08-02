@@ -114,7 +114,7 @@ World::World(const SpriteSheet *playerSheet, const SpriteSheet *enemySheet)
 bool World::loadLevel(int index)
 {
     levelIndex_ = std::clamp(index, 0, 2);
-    if (!level_.load(QString(":/levels/level%1.txt").arg(levelIndex_ + 1))) {
+    if (!level_.load(QString("level%1.json").arg(levelIndex_ + 1))) {
         return false;
     }
 

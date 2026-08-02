@@ -1,6 +1,224 @@
 #include "level.h"
+
+#include <QCoreApplication>
+#include <QDir>
 #include <QFile>
-#include <QStringList>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
 #include <QTextStream>
-bool Level::load(const QString&path){QFile f(path);if(!f.open(QIODevice::ReadOnly|QIODevice::Text))return false;platforms_.clear();moving_.clear();ladders_.clear();spikes_.clear();enemies_.clear();coins_.clear();pickups_.clear();doors_.clear();switches_.clear();keys_.clear();checkpoint_=QPointF(-1,-1);QTextStream in(&f);while(!in.atEnd()){QString line=in.readLine().trimmed();if(line.isEmpty()||line.startsWith('#'))continue;QStringList p=line.split(' ',Qt::SkipEmptyParts);QString c=p[0].toUpper();if(c=="NAME")name_=line.mid(5);else if(c=="WORLD"&&p.size()>=3)world_=QSizeF(p[1].toDouble(),p[2].toDouble());else if(c=="PLAYER"&&p.size()>=3)spawn_=QPointF(p[1].toDouble(),p[2].toDouble());else if(c=="PLATFORM"&&p.size()>=5)platforms_<<QRectF(p[1].toDouble(),p[2].toDouble(),p[3].toDouble(),p[4].toDouble());else if(c=="MOVING"&&p.size()>=9){MovingSpawn m; m.rect=QRectF(p[1].toDouble(),p[2].toDouble(),p[3].toDouble(),p[4].toDouble());m.minX=p[5].toDouble();m.maxX=p[6].toDouble();m.speedX=p[7].toDouble();m.speedY=p[8].toDouble();moving_<<m;}else if(c=="LADDER"&&p.size()>=5)ladders_<<QRectF(p[1].toDouble(),p[2].toDouble(),p[3].toDouble(),p[4].toDouble());else if(c=="SPIKE"&&p.size()>=5)spikes_<<QRectF(p[1].toDouble(),p[2].toDouble(),p[3].toDouble(),p[4].toDouble());else if(c=="ENEMY"&&p.size()>=6)enemies_<<EnemySpawn{p[1],QPointF(p[2].toDouble(),p[3].toDouble()),p[4].toDouble(),p[5].toDouble()};else if(c=="COIN"&&p.size()>=3)coins_<<QPointF(p[1].toDouble(),p[2].toDouble());else if(c=="PICKUP"&&p.size()>=4)pickups_<<PickupSpawn{p[1],QPointF(p[2].toDouble(),p[3].toDouble())};else if(c=="KEY"&&p.size()>=4)keys_<<KeySpawn{p[1],QPointF(p[2].toDouble(),p[3].toDouble())};else if(c=="DOOR"&&p.size()>=6)doors_<<DoorSpawn{p[1],QRectF(p[2].toDouble(),p[3].toDouble(),p[4].toDouble(),p[5].toDouble())};else if(c=="SWITCH"&&p.size()>=4)switches_<<SwitchSpawn{p[3],QPointF(p[1].toDouble(),p[2].toDouble())};else if(c=="CHECKPOINT"&&p.size()>=3)checkpoint_=QPointF(p[1].toDouble(),p[2].toDouble());else if(c=="GOAL"&&p.size()>=5)goal_=QRectF(p[1].toDouble(),p[2].toDouble(),p[3].toDouble(),p[4].toDouble());}return !platforms_.isEmpty();}
-QString Level::name()const{return name_;}QSizeF Level::worldSize()const{return world_;}QPointF Level::playerSpawn()const{return spawn_;}const QVector<QRectF>&Level::platforms()const{return platforms_;}const QVector<MovingSpawn>&Level::moving()const{return moving_;}const QVector<QRectF>&Level::ladders()const{return ladders_;}const QVector<QRectF>&Level::spikes()const{return spikes_;}const QVector<EnemySpawn>&Level::enemies()const{return enemies_;}const QVector<QPointF>&Level::coins()const{return coins_;}const QVector<PickupSpawn>&Level::pickups()const{return pickups_;}const QVector<DoorSpawn>&Level::doors()const{return doors_;}const QVector<SwitchSpawn>&Level::switches()const{return switches_;}const QVector<KeySpawn>&Level::keys()const{return keys_;}QPointF Level::checkpoint()const{return checkpoint_;}QRectF Level::goal()const{return goal_;}
+#include <QDebug>
+
+namespace {
+
+QRectF rectFromArray(const QJsonValue &value)
+{
+    const QJsonArray a = value.toArray();
+    if (a.size() < 4) {
+        return {};
+    }
+
+    return QRectF(
+        a[0].toDouble(),
+        a[1].toDouble(),
+        a[2].toDouble(),
+        a[3].toDouble());
+}
+
+QPointF pointFromArray(const QJsonValue &value)
+{
+    const QJsonArray a = value.toArray();
+    if (a.size() < 2) {
+        return {};
+    }
+
+    return QPointF(a[0].toDouble(), a[1].toDouble());
+}
+
+QString resolveLevelPath(const QString &requested)
+{
+    if (requested.startsWith(":/")) {
+        return requested;
+    }
+
+    const QString fileName = QFileInfo(requested).fileName();
+    const QString appDir = QCoreApplication::applicationDirPath();
+
+    const QStringList candidates {
+        requested,
+        QDir::current().filePath("assets/levels/" + fileName),
+        QDir(appDir).filePath("assets/levels/" + fileName),
+        QDir(appDir).filePath("levels/" + fileName),
+        ":/levels/" + fileName
+    };
+
+    for (const QString &candidate : candidates) {
+        if (QFile::exists(candidate)) {
+            return candidate;
+        }
+    }
+
+    return requested;
+}
+
+} // namespace
+
+bool Level::load(const QString &requestedPath)
+{
+    const QString path = resolveLevelPath(requestedPath);
+    QFile file(path);
+
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning() << "Cannot open level:" << path;
+        return false;
+    }
+
+    const QByteArray data = file.readAll();
+    QJsonParseError error;
+    const QJsonDocument document =
+        QJsonDocument::fromJson(data, &error);
+
+    if (error.error != QJsonParseError::NoError
+        || !document.isObject()) {
+        qWarning() << "Invalid JSON level" << path
+                   << error.errorString()
+                   << "at offset" << error.offset;
+        return false;
+    }
+
+    platforms_.clear();
+    moving_.clear();
+    ladders_.clear();
+    spikes_.clear();
+    enemies_.clear();
+    coins_.clear();
+    pickups_.clear();
+    doors_.clear();
+    switches_.clear();
+    keys_.clear();
+    checkpoint_ = QPointF(-1, -1);
+
+    const QJsonObject root = document.object();
+
+    name_ = root.value("name").toString("Level");
+
+    const QJsonObject world = root.value("world").toObject();
+    world_ = QSizeF(
+        world.value("width").toDouble(960),
+        world.value("height").toDouble(640));
+
+    const QJsonObject player = root.value("player").toObject();
+    spawn_ = QPointF(
+        player.value("x").toDouble(80),
+        player.value("y").toDouble(450));
+
+    for (const QJsonValue &value : root.value("platforms").toArray()) {
+        platforms_ << rectFromArray(value);
+    }
+
+    for (const QJsonValue &value :
+         root.value("movingPlatforms").toArray()) {
+        const QJsonObject object = value.toObject();
+        MovingSpawn moving;
+        moving.rect = rectFromArray(object.value("rect"));
+        moving.minX = object.value("minX").toDouble(moving.rect.left());
+        moving.maxX = object.value("maxX").toDouble(moving.rect.left());
+        moving.speedX = object.value("speedX").toDouble();
+        moving.speedY = object.value("speedY").toDouble();
+        moving_ << moving;
+    }
+
+    for (const QJsonValue &value : root.value("ladders").toArray()) {
+        ladders_ << rectFromArray(value);
+    }
+
+    for (const QJsonValue &value : root.value("spikes").toArray()) {
+        spikes_ << rectFromArray(value);
+    }
+
+    for (const QJsonValue &value : root.value("enemies").toArray()) {
+        const QJsonObject object = value.toObject();
+        enemies_ << EnemySpawn {
+            object.value("kind").toString("walker"),
+            QPointF(
+                object.value("x").toDouble(),
+                object.value("y").toDouble()),
+            object.value("left").toDouble(),
+            object.value("right").toDouble()
+        };
+    }
+
+    for (const QJsonValue &value : root.value("coins").toArray()) {
+        coins_ << pointFromArray(value);
+    }
+
+    for (const QJsonValue &value : root.value("pickups").toArray()) {
+        const QJsonObject object = value.toObject();
+        pickups_ << PickupSpawn {
+            object.value("kind").toString("ammo"),
+            QPointF(
+                object.value("x").toDouble(),
+                object.value("y").toDouble())
+        };
+    }
+
+    for (const QJsonValue &value : root.value("keys").toArray()) {
+        const QJsonObject object = value.toObject();
+        keys_ << KeySpawn {
+            object.value("key").toString(),
+            QPointF(
+                object.value("x").toDouble(),
+                object.value("y").toDouble())
+        };
+    }
+
+    for (const QJsonValue &value : root.value("doors").toArray()) {
+        const QJsonObject object = value.toObject();
+        doors_ << DoorSpawn {
+            object.value("key").toString(),
+            rectFromArray(object.value("rect"))
+        };
+    }
+
+    for (const QJsonValue &value : root.value("switches").toArray()) {
+        const QJsonObject object = value.toObject();
+        switches_ << SwitchSpawn {
+            object.value("key").toString(),
+            QPointF(
+                object.value("x").toDouble(),
+                object.value("y").toDouble())
+        };
+    }
+
+    if (root.contains("checkpoint")) {
+        checkpoint_ =
+            pointFromArray(root.value("checkpoint"));
+    }
+
+    goal_ = rectFromArray(root.value("goal"));
+
+    if (platforms_.isEmpty()) {
+        qWarning() << "Level contains no platforms:" << path;
+        return false;
+    }
+
+    qInfo() << "Loaded level:" << path;
+    return true;
+}
+
+QString Level::name() const { return name_; }
+QSizeF Level::worldSize() const { return world_; }
+QPointF Level::playerSpawn() const { return spawn_; }
+const QVector<QRectF> &Level::platforms() const { return platforms_; }
+const QVector<MovingSpawn> &Level::moving() const { return moving_; }
+const QVector<QRectF> &Level::ladders() const { return ladders_; }
+const QVector<QRectF> &Level::spikes() const { return spikes_; }
+const QVector<EnemySpawn> &Level::enemies() const { return enemies_; }
+const QVector<QPointF> &Level::coins() const { return coins_; }
+const QVector<PickupSpawn> &Level::pickups() const { return pickups_; }
+const QVector<DoorSpawn> &Level::doors() const { return doors_; }
+const QVector<SwitchSpawn> &Level::switches() const { return switches_; }
+const QVector<KeySpawn> &Level::keys() const { return keys_; }
+QPointF Level::checkpoint() const { return checkpoint_; }
+QRectF Level::goal() const { return goal_; }
