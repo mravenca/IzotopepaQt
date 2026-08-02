@@ -1,0 +1,7 @@
+<RCC><qresource prefix="/">
+ <file alias="sprites/izotop.bmp">assets/sprites/izotop.bmp</file>
+ <file alias="sprites/potvory.bmp">assets/sprites/potvory.bmp</file>
+ <file alias="levels/level1.txt">assets/levels/level1.txt</file>
+ <file alias="levels/level2.txt">assets/levels/level2.txt</file>
+ <file alias="levels/level3.txt">assets/levels/level3.txt</file>
+</qresource></RCC>
