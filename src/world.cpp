@@ -1347,7 +1347,7 @@ void World::explode(QPointF at, QColor color)
         particles_ << Particle{at,
                                QVector2D(qCos(angle) * speed, qSin(angle) * speed),
                                .35 + QRandomGenerator::global()->generateDouble() * .45,
-                               3 + QRandomGenerator::global()->bounded(5),
+                               3.0 + QRandomGenerator::global()->bounded(5),
                                color};
     }
 }
