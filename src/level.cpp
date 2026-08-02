@@ -104,6 +104,7 @@ bool Level::load(const QString &requestedPath)
     pressurePlates_.clear();
     conveyors_.clear();
     oneWayPlatforms_.clear();
+    fallingPlatforms_.clear();
     checkpoint_ = QPointF(-1, -1);
 
     const QJsonObject root = document.object();
@@ -291,6 +292,25 @@ bool Level::load(const QString &requestedPath)
         };
     }
 
+    for (const QJsonValue &value : root.value("fallingPlatforms").toArray()) {
+        const QJsonObject object = value.toObject();
+        const QRectF rect = rectFromArray(object.value("rect"));
+
+        if (rect.width() <= 0.0 || rect.height() <= 0.0) {
+            continue;
+        }
+
+        fallingPlatforms_ << FallingPlatformSpawn {
+            rect,
+            object.value("material").toString("stone"),
+            std::max(0.01, object.value("confirmationTime").toDouble(0.15)),
+            object.contains("fallDelay")
+                ? std::max(0.1, object.value("fallDelay").toDouble())
+                : -1.0,
+            std::max(0.0, object.value("respawnDelay").toDouble(4.0))
+        };
+    }
+
     if (root.contains("checkpoint")) {
         checkpoint_ =
             pointFromArray(root.value("checkpoint"));
@@ -327,5 +347,6 @@ const QVector<JumpPadSpawn> &Level::jumpPads() const { return jumpPads_; }
 const QVector<PressurePlateSpawn> &Level::pressurePlates() const { return pressurePlates_; }
 const QVector<ConveyorSpawn> &Level::conveyors() const { return conveyors_; }
 const QVector<OneWayPlatformSpawn> &Level::oneWayPlatforms() const { return oneWayPlatforms_; }
+const QVector<FallingPlatformSpawn> &Level::fallingPlatforms() const { return fallingPlatforms_; }
 QPointF Level::checkpoint() const { return checkpoint_; }
 QRectF Level::goal() const { return goal_; }

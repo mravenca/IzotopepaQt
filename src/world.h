@@ -6,6 +6,7 @@
 #include "pressureplate.h"
 #include "conveyor.h"
 #include "onewayplatform.h"
+#include "fallingplatform.h"
 #include "worldevent.h"
 
 #include <QPointF>
@@ -124,6 +125,9 @@ private:
     void updateJumpPads(double dt);
     void updatePressurePlates(double dt);
     void updateConveyors(double dt);
+    void updateFallingPlatforms(double dt);
+    bool standingOnFallingPlatform(const QRectF &object, const QRectF &platform) const;
+    bool fallingPlatformRespawnClear(const QRectF &rect) const;
     QVector<QRectF> oneWayRects() const;
     bool playerStandingOnOneWay() const;
     double conveyorSpeedBelow(const QRectF &rect) const;
@@ -154,6 +158,7 @@ private:
     QVector<PressurePlate> pressurePlates_;
     QVector<Conveyor> conveyors_;
     QVector<OneWayPlatform> oneWayPlatforms_;
+    QVector<FallingPlatform> fallingPlatforms_;
     WorldEventQueue worldEvents_;
     QVector<JumpPadActivation> jumpPadActivations_;
     QVector<Projectile> projectiles_;

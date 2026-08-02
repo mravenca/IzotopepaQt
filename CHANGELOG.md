@@ -1,3 +1,11 @@
+## M5 — The Floor Is Gone
+
+### Added
+- Falling platforms triggered by player, boxes, or enemies
+- 0.15 second standing confirmation before activation
+- Warning animation, falling physics, and safe automatic respawn
+- Stone, wood, metal, and ice material behavior
+
 ## M4 — Trust Your Step
 
 ### Added

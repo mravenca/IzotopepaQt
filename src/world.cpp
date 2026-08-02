@@ -225,6 +225,15 @@ bool World::loadLevel(int index)
     for (const auto &spawn : level_.oneWayPlatforms()) {
         oneWayPlatforms_ << OneWayPlatform(spawn.rect);
     }
+    fallingPlatforms_.clear();
+    for (const auto &spawn : level_.fallingPlatforms()) {
+        fallingPlatforms_ << FallingPlatform(
+            spawn.rect,
+            spawn.material,
+            spawn.confirmationTime,
+            spawn.fallDelay,
+            spawn.respawnDelay);
+    }
 
     pressurePlates_.clear();
     worldEvents_.clear();
@@ -282,6 +291,11 @@ void World::rebuildCollision()
     for (const auto &box : pushBoxes_) {
         if (box.alive) {
             collision_ << box.rect;
+        }
+    }
+    for (const FallingPlatform &platform : fallingPlatforms_) {
+        if (platform.isSolid()) {
+            collision_ << platform.rect();
         }
     }
 }
@@ -385,6 +399,8 @@ void World::update(double dt)
         }
     }
 
+    updateFallingPlatforms(dt);
+    rebuildCollision();
     updatePushBoxes(dt);
     rebuildCollision();
     player_.update(
@@ -687,7 +703,129 @@ QVector<QRectF> World::pushBoxBlockers(int excludedIndex) const
         }
     }
 
+    for (const FallingPlatform &platform : fallingPlatforms_) {
+        if (platform.isSolid()) {
+            blockers << platform.rect();
+        }
+    }
+
     return blockers;
+}
+
+bool World::standingOnFallingPlatform(
+    const QRectF &object,
+    const QRectF &platform) const
+{
+    const QRectF feet(
+        object.left() + 5.0,
+        object.bottom() - 5.0,
+        std::max(1.0, object.width() - 10.0),
+        10.0);
+
+    return feet.intersects(platform)
+        && object.bottom() <= platform.top() + 7.0;
+}
+
+bool World::fallingPlatformRespawnClear(const QRectF &rect) const
+{
+    const QRectF safetyArea = rect.adjusted(-3.0, -6.0, 3.0, 3.0);
+
+    if (player_.rect().intersects(safetyArea)) {
+        return false;
+    }
+
+    for (const PushBox &box : pushBoxes_) {
+        if (box.alive && box.rect.intersects(safetyArea)) {
+            return false;
+        }
+    }
+
+    for (const Enemy &enemy : enemies_) {
+        if (enemy.alive() && enemy.rect().intersects(safetyArea)) {
+            return false;
+        }
+    }
+
+    for (const Crate &crate : crates_) {
+        if (crate.alive && crate.rect.intersects(safetyArea)) {
+            return false;
+        }
+    }
+
+    for (const Barrel &barrel : barrels_) {
+        if (barrel.alive && barrel.rect.intersects(safetyArea)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void World::updateFallingPlatforms(double dt)
+{
+    bool collisionChanged = false;
+
+    for (FallingPlatform &platform : fallingPlatforms_) {
+        bool occupied = false;
+
+        if (platform.isSolid()) {
+            occupied = standingOnFallingPlatform(
+                player_.rect(), platform.rect());
+
+            if (!occupied) {
+                for (const PushBox &box : pushBoxes_) {
+                    if (box.alive
+                        && standingOnFallingPlatform(
+                            box.rect, platform.rect())) {
+                        occupied = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!occupied) {
+                for (const Enemy &enemy : enemies_) {
+                    if (enemy.alive()
+                        && standingOnFallingPlatform(
+                            enemy.rect(), platform.rect())) {
+                        occupied = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        const bool wasSolid = platform.isSolid();
+        const FallingPlatformUpdate result = platform.update(
+            dt,
+            occupied,
+            fallingPlatformRespawnClear(platform.startRect()),
+            level_.worldSize().height());
+
+        if (wasSolid != platform.isSolid()) {
+            collisionChanged = true;
+        }
+
+        if (result.armed) {
+            message_ = platform.material() + " platform triggered";
+            messageTime_ = 1.2;
+            beep();
+        }
+
+        if (result.beganFalling) {
+            explode(platform.rect().center(), QColor(155, 140, 115));
+            shakeTime_ = std::max(shakeTime_, 0.20);
+            shakeStrength_ = std::max(shakeStrength_, 5.0);
+        }
+
+        if (result.respawned) {
+            explode(platform.rect().center(), QColor(190, 205, 215));
+        }
+    }
+
+    if (collisionChanged) {
+        rebuildCollision();
+    }
 }
 
 void World::updatePressurePlates(double dt)
@@ -1347,7 +1485,7 @@ void World::explode(QPointF at, QColor color)
         particles_ << Particle{at,
                                QVector2D(qCos(angle) * speed, qSin(angle) * speed),
                                .35 + QRandomGenerator::global()->generateDouble() * .45,
-                               3 + QRandomGenerator::global()->bounded(5),
+                               3.0 + QRandomGenerator::global()->bounded(5),
                                color};
     }
 }
@@ -1386,6 +1524,10 @@ void World::draw(QPainter &painter, double cameraX) const
 
     for (const auto &platform : moving_) {
         drawMovingPlatform(painter, platform.rect.translated(-cameraX, 0));
+    }
+
+    for (const FallingPlatform &platform : fallingPlatforms_) {
+        platform.draw(painter, cameraX);
     }
 
     for (const OneWayPlatform &platform : oneWayPlatforms_) {
