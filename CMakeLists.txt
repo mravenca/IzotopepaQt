@@ -17,6 +17,8 @@ add_executable(IzotopepaQtGameV3
     src/gamewidget.h
     src/world.cpp
     src/world.h
+    src/combatfeedback.cpp
+    src/combatfeedback.h
     src/entities.cpp
     src/entities.h
     src/enemybrain.cpp

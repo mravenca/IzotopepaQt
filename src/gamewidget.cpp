@@ -69,7 +69,7 @@ void GameWidget::drawDebugOverlay(QPainter &p)
     p.save();
     p.setPen(Qt::NoPen);
     p.setBrush(QColor(0, 0, 0, 190));
-    p.drawRoundedRect(QRectF(W - 310, 12, 298, 166), 6, 6);
+    p.drawRoundedRect(QRectF(W - 360, 12, 348, 238), 6, 6);
     p.setPen(QColor(120, 255, 140));
     p.setFont(QFont("Monospace", 10));
 
@@ -83,7 +83,7 @@ void GameWidget::drawDebugOverlay(QPainter &p)
         .arg(world_.enemyDebugText());
 
     p.drawText(
-        QRectF(W - 298, 20, 276, 148),
+        QRectF(W - 348, 20, 326, 218),
         Qt::AlignLeft | Qt::AlignTop,
         text);
     p.restore();

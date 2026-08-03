@@ -14,6 +14,7 @@
 #include "fallingplatform.h"
 #include "environmentvolume.h"
 #include "worldevent.h"
+#include "combatfeedback.h"
 
 #include <QPointF>
 #include <QRectF>
@@ -129,6 +130,21 @@ public:
 private:
     void rebuildCollision();
     void explode(QPointF position, QColor color);
+    void combatImpact(
+        const QPointF &position,
+        CombatImpact impact,
+        double intensity = 1.0,
+        QColor accent = QColor());
+    void enemyDeath(
+        const QPointF &position,
+        QColor accent,
+        int reward,
+        const QString &audioEventName);
+    void requestCombatFeedback(
+        double shakeDuration,
+        double shakeStrength,
+        double hitStop = 0.0);
+    void audioEvent(const QString &name) const;
     void applyExplosion(const ExplosionEvent &event);
     void destroyCrate(Crate &crate);
     void updatePushBoxes(double dt);
@@ -200,6 +216,7 @@ private:
     double shakeTime_ = 0;
     double shakeStrength_ = 0;
     double animationTime_ = 0;
+    double hitStop_ = 0;
     double oneWayDropTimer_ = 0;
     bool playerWasInWater_ = false;
 };

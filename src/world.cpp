@@ -337,6 +337,12 @@ void World::update(double dt)
     if (completed_ || gameOver_) {
         return;
     }
+
+    if (hitStop_ > 0.0) {
+        hitStop_ = std::max(0.0, hitStop_ - dt);
+        return;
+    }
+
     animationTime_ += dt;
     oneWayDropTimer_ = std::max(0.0, oneWayDropTimer_ - dt);
     shakeTime_ = std::max(0.0, shakeTime_ - dt);
@@ -775,10 +781,14 @@ void World::update(double dt)
         if (projectile.hostile) {
             if (projectile.rect.intersects(player_.rect())) {
                 player_.damage(projectile.rect.center().x());
-                shakeTime_ = std::max(shakeTime_, 0.18);
-                shakeStrength_ = std::max(shakeStrength_, 5.0);
+                requestCombatFeedback(0.18, 5.0, 0.018);
                 projectile.alive = false;
-                explode(projectile.rect.center(), Qt::red);
+                combatImpact(
+                    projectile.rect.center(),
+                    CombatImpact::Bullet,
+                    1.15,
+                    QColor(235, 65, 65));
+                audioEvent("player.hit");
             }
         } else {
             bool hitDrone = false;
@@ -788,17 +798,18 @@ void World::update(double dt)
                     drone.damage(1, projectile.rect.center());
                     projectile.alive = false;
                     hitDrone = true;
-                    explode(projectile.rect.center(), Qt::yellow);
-                    shakeTime_ = std::max(shakeTime_, 0.10);
-                    shakeStrength_ = std::max(shakeStrength_, 3.0);
+                    combatImpact(
+                        projectile.rect.center(),
+                        CombatImpact::Metal,
+                        1.0);
+                    requestCombatFeedback(0.10, 3.0, 0.010);
 
                     if (!drone.alive()) {
-                        player_.addScore(drone.reward());
-                        explode(drone.rect().center(), QColor(255, 95, 40));
-                        explode(drone.rect().center() + QPointF(8, -8), Qt::yellow);
-                        shakeTime_ = std::max(shakeTime_, 0.30);
-                        shakeStrength_ = std::max(shakeStrength_, 8.0);
-                        beep();
+                        enemyDeath(
+                            drone.rect().center(),
+                            QColor(255, 95, 40),
+                            drone.reward(),
+                            "enemy.drone.destroy");
                     }
                     break;
                 }
@@ -815,17 +826,18 @@ void World::update(double dt)
                     turret.damage(1, projectile.rect.center());
                     projectile.alive = false;
                     hitTurret = true;
-                    explode(projectile.rect.center(), Qt::yellow);
-                    shakeTime_ = std::max(shakeTime_, 0.10);
-                    shakeStrength_ = std::max(shakeStrength_, 3.0);
+                    combatImpact(
+                        projectile.rect.center(),
+                        CombatImpact::Metal,
+                        1.0);
+                    requestCombatFeedback(0.10, 3.0, 0.010);
 
                     if (!turret.alive()) {
-                        player_.addScore(turret.reward());
-                        explode(turret.rect().center(), QColor(255, 95, 40));
-                        explode(turret.rect().center() + QPointF(8, -8), Qt::yellow);
-                        shakeTime_ = std::max(shakeTime_, 0.30);
-                        shakeStrength_ = std::max(shakeStrength_, 8.0);
-                        beep();
+                        enemyDeath(
+                            turret.rect().center(),
+                            QColor(255, 130, 35),
+                            turret.reward(),
+                            "enemy.turret.destroy");
                     }
                     break;
                 }
@@ -842,17 +854,18 @@ void World::update(double dt)
                     charger.damage(1, projectile.rect.center());
                     projectile.alive = false;
                     hitCharger = true;
-                    explode(projectile.rect.center(), Qt::yellow);
-                    shakeTime_ = std::max(shakeTime_, 0.10);
-                    shakeStrength_ = std::max(shakeStrength_, 3.0);
+                    combatImpact(
+                        projectile.rect.center(),
+                        CombatImpact::Metal,
+                        1.0);
+                    requestCombatFeedback(0.10, 3.0, 0.010);
 
                     if (!charger.alive()) {
-                        player_.addScore(charger.reward());
-                        explode(charger.rect().center(), QColor(255, 95, 40));
-                        explode(charger.rect().center() + QPointF(8, -8), Qt::yellow);
-                        shakeTime_ = std::max(shakeTime_, 0.30);
-                        shakeStrength_ = std::max(shakeStrength_, 8.0);
-                        beep();
+                        enemyDeath(
+                            charger.rect().center(),
+                            QColor(255, 95, 40),
+                            charger.reward(),
+                            "enemy.charger.destroy");
                     }
                     break;
                 }
@@ -878,20 +891,28 @@ void World::update(double dt)
                 hitShieldSoldier = true;
 
                 if (result == ShieldBulletResult::Blocked) {
-                    explode(projectile.rect.center(), QColor(120, 220, 255));
+                    combatImpact(
+                        projectile.rect.center(),
+                        CombatImpact::Shield,
+                        1.25);
+                    requestCombatFeedback(0.07, 2.0, 0.012);
+                    audioEvent("enemy.shield.block");
                     message_ = "Shield blocked the shot";
                     messageTime_ = 0.55;
                 } else {
-                    explode(projectile.rect.center(), Qt::yellow);
-                    shakeTime_ = std::max(shakeTime_, 0.10);
-                    shakeStrength_ = std::max(shakeStrength_, 3.0);
+                    combatImpact(
+                        projectile.rect.center(),
+                        CombatImpact::Bullet,
+                        1.0);
+                    requestCombatFeedback(0.10, 3.0, 0.010);
                 }
 
                 if (result == ShieldBulletResult::Destroyed) {
-                    player_.addScore(soldier.reward());
-                    explode(soldier.rect().center(), QColor(80, 175, 230));
-                    explode(soldier.rect().center() + QPointF(8, -8), Qt::yellow);
-                    beep();
+                    enemyDeath(
+                        soldier.rect().center(),
+                        QColor(80, 175, 230),
+                        soldier.reward(),
+                        "enemy.shield.destroy");
                 }
                 break;
             }
@@ -903,19 +924,18 @@ void World::update(double dt)
             for (auto &enemy : enemies_) {
                 if (enemy.alive() && projectile.rect.intersects(enemy.rect())) {
                     enemy.damage(1, projectile.rect.center().x());
-                    shakeTime_ = std::max(shakeTime_, 0.10);
-                    shakeStrength_ = std::max(shakeStrength_, 3.0);
+                    requestCombatFeedback(0.10, 3.0, 0.010);
                     projectile.alive = false;
-                    explode(projectile.rect.center(), Qt::yellow);
+                    combatImpact(
+                        projectile.rect.center(),
+                        CombatImpact::Bullet,
+                        1.0);
                     if (!enemy.alive()) {
-                        player_.addScore(enemy.reward());
-                        explode(enemy.rect().center(), Qt::red);
-                        explode(
-                            enemy.rect().center() + QPointF(10, -12),
-                            QColor(255, 170, 40));
-                        shakeTime_ = std::max(shakeTime_, 0.30);
-                        shakeStrength_ = std::max(shakeStrength_, 8.0);
-                        beep();
+                        enemyDeath(
+                            enemy.rect().center(),
+                            QColor(235, 70, 55),
+                            enemy.reward(),
+                            "enemy.legacy.destroy");
                     }
                     break;
                 }
@@ -1936,7 +1956,11 @@ void World::applyExplosion(const ExplosionEvent &event)
         enemy.damage(event.damage, event.center.x());
 
         if (wasAlive && !enemy.alive()) {
-            player_.addScore(enemy.reward());
+            enemyDeath(
+                enemy.rect().center(),
+                QColor(235, 70, 55),
+                enemy.reward(),
+                "enemy.legacy.destroy");
         }
     }
 
@@ -1948,7 +1972,11 @@ void World::applyExplosion(const ExplosionEvent &event)
         const bool wasAlive = drone.alive();
         drone.applyExplosion(event.center, event.damage);
         if (wasAlive && !drone.alive()) {
-            player_.addScore(drone.reward());
+            enemyDeath(
+                drone.rect().center(),
+                QColor(255, 95, 40),
+                drone.reward(),
+                "enemy.drone.destroy");
         }
     }
 
@@ -1960,7 +1988,11 @@ void World::applyExplosion(const ExplosionEvent &event)
         const bool wasAlive = turret.alive();
         turret.applyExplosion(event.center, event.damage);
         if (wasAlive && !turret.alive()) {
-            player_.addScore(turret.reward());
+            enemyDeath(
+                turret.rect().center(),
+                QColor(255, 130, 35),
+                turret.reward(),
+                "enemy.turret.destroy");
         }
     }
 
@@ -1972,7 +2004,11 @@ void World::applyExplosion(const ExplosionEvent &event)
         const bool wasAlive = charger.alive();
         charger.applyExplosion(event.center, event.damage);
         if (wasAlive && !charger.alive()) {
-            player_.addScore(charger.reward());
+            enemyDeath(
+                charger.rect().center(),
+                QColor(255, 95, 40),
+                charger.reward(),
+                "enemy.charger.destroy");
         }
     }
     for (ShieldSoldier &soldier : shieldSoldiers_) {
@@ -1983,7 +2019,11 @@ void World::applyExplosion(const ExplosionEvent &event)
         const bool wasAlive = soldier.alive();
         soldier.applyExplosion(event.center, event.damage);
         if (wasAlive && !soldier.alive()) {
-            player_.addScore(soldier.reward());
+            enemyDeath(
+                soldier.rect().center(),
+                QColor(80, 175, 230),
+                soldier.reward(),
+                "enemy.shield.destroy");
         }
     }
 
@@ -2042,8 +2082,13 @@ void World::applyExplosion(const ExplosionEvent &event)
             color);
     }
 
-    shakeTime_ = std::max(shakeTime_, 0.42);
-    shakeStrength_ = std::max(shakeStrength_, 12.0);
+    combatImpact(
+        event.center,
+        CombatImpact::Explosion,
+        1.35,
+        QColor(255, 105, 25));
+    requestCombatFeedback(0.36, 10.0, 0.025);
+    audioEvent("environment.explosion");
     message_ = "Explosion!";
     messageTime_ = 0.8;
 
@@ -2051,6 +2096,56 @@ void World::applyExplosion(const ExplosionEvent &event)
         rebuildCollision();
     }
 
+}
+
+void World::combatImpact(
+    const QPointF &position,
+    CombatImpact impact,
+    double intensity,
+    QColor accent)
+{
+    CombatFeedback::appendImpact(
+        particles_,
+        position,
+        impact,
+        intensity,
+        accent);
+}
+
+void World::enemyDeath(
+    const QPointF &position,
+    QColor accent,
+    int reward,
+    const QString &audioEventName)
+{
+    player_.addScore(reward);
+    combatImpact(
+        position,
+        CombatImpact::EnemyDeath,
+        1.20,
+        accent);
+    combatImpact(
+        position + QPointF(8, -9),
+        CombatImpact::Explosion,
+        0.75,
+        QColor(255, 185, 55));
+    requestCombatFeedback(0.28, 7.0, 0.040);
+    audioEvent(audioEventName);
+}
+
+void World::requestCombatFeedback(
+    double shakeDuration,
+    double shakeStrength,
+    double hitStop)
+{
+    shakeTime_ = std::max(shakeTime_, shakeDuration);
+    shakeStrength_ = std::max(shakeStrength_, shakeStrength);
+    hitStop_ = std::max(hitStop_, hitStop);
+}
+
+void World::audioEvent(const QString &name) const
+{
+    Q_UNUSED(name);
     beep();
 }
 
@@ -2493,34 +2588,75 @@ QString World::message() const { return message_; }
 
 QString World::enemyDebugText() const
 {
+    int legacyAlive = 0;
+    int dronesAlive = 0;
+    int turretsAlive = 0;
+    int chargersAlive = 0;
+    int shieldsAlive = 0;
+
+    for (const Enemy &enemy : enemies_) {
+        legacyAlive += enemy.alive() ? 1 : 0;
+    }
     for (const Drone &drone : drones_) {
-        if (drone.alive()) {
-            return drone.debugText();
-        }
+        dronesAlive += drone.alive() ? 1 : 0;
     }
-
     for (const Turret &turret : turrets_) {
-        if (turret.alive()) {
-            return turret.debugText();
-        }
+        turretsAlive += turret.alive() ? 1 : 0;
     }
-
     for (const Charger &charger : chargers_) {
-        if (charger.alive()) {
-            return charger.debugText();
-        }
+        chargersAlive += charger.alive() ? 1 : 0;
     }
     for (const ShieldSoldier &soldier : shieldSoldiers_) {
-        if (soldier.alive()) {
-            return soldier.debugText();
+        shieldsAlive += soldier.alive() ? 1 : 0;
+    }
+
+    QString selected = "No framework enemy alive";
+
+    for (const Drone &drone : drones_) {
+        if (drone.alive()) {
+            selected = drone.debugText();
+            break;
+        }
+    }
+
+    if (selected == "No framework enemy alive") {
+        for (const Turret &turret : turrets_) {
+            if (turret.alive()) {
+                selected = turret.debugText();
+                break;
+            }
+        }
+    }
+
+    if (selected == "No framework enemy alive") {
+        for (const Charger &charger : chargers_) {
+            if (charger.alive()) {
+                selected = charger.debugText();
+                break;
+            }
+        }
+    }
+
+    if (selected == "No framework enemy alive") {
+        for (const ShieldSoldier &soldier : shieldSoldiers_) {
+            if (soldier.alive()) {
+                selected = soldier.debugText();
+                break;
+            }
         }
     }
 
     return QString(
-        "Enemies: %1  Drones: %2  Turrets: %3  Chargers: %4  Shields: %5")
-        .arg(enemies_.size())
-        .arg(drones_.size())
-        .arg(turrets_.size())
-        .arg(chargers_.size())
-        .arg(shieldSoldiers_.size());
+        "%1\nAlive L/D/T/C/S: %2/%3/%4/%5/%6\n"
+        "Projectiles: %7  Particles: %8\nShake: %9  Hit-stop: %10")
+        .arg(selected)
+        .arg(legacyAlive)
+        .arg(dronesAlive)
+        .arg(turretsAlive)
+        .arg(chargersAlive)
+        .arg(shieldsAlive)
+        .arg(projectiles_.size())
+        .arg(particles_.size())
+        .arg(shakeStrength_, 0, 'f', 1)
+        .arg(hitStop_ > 0.0 ? "ON" : "off");
 }

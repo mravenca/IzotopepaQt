@@ -1,3 +1,11 @@
+## M8.5 - Combat Polish
+
+### Added
+- Shared combat impact and death particle recipes.
+- Subtle hit-stop for major impacts and enemy deaths.
+- Named audio-event hooks with the existing beep fallback.
+- Expanded F3 combat diagnostics and balancing documentation.
+
 ## M8.4 - Shield Soldier
 
 ### Added
