@@ -151,14 +151,53 @@ bool Level::load(const QString &requestedPath)
 
     for (const QJsonValue &value : root.value("enemies").toArray()) {
         const QJsonObject object = value.toObject();
-        enemies_ << EnemySpawn {
-            object.value("kind").toString("walker"),
-            QPointF(
-                object.value("x").toDouble(),
-                object.value("y").toDouble()),
-            object.value("left").toDouble(),
-            object.value("right").toDouble()
-        };
+        EnemySpawn spawn;
+        spawn.kind = object.value("kind").toString("walker");
+        spawn.position = QPointF(
+            object.value("x").toDouble(),
+            object.value("y").toDouble());
+        spawn.leftLimit = object.value("left").toDouble();
+        spawn.rightLimit = object.value("right").toDouble();
+        spawn.speed = object.value("speed").toDouble(140.0);
+        spawn.vision = object.value("vision").toDouble(420.0);
+        spawn.health = std::max(1, object.value("health").toInt(3));
+        spawn.burst = std::clamp(object.value("burst").toInt(3), 1, 6);
+        spawn.reload = std::max(0.1, object.value("reload").toDouble(2.0));
+        spawn.mount = object.value("mount").toString("floor");
+        const QString direction = object.value("direction").toString("left");
+        spawn.direction = direction.compare("right", Qt::CaseInsensitive) == 0 ? 1 : -1;
+        spawn.visionAngle = std::clamp(
+            object.value("visionAngle").toDouble(100.0),
+            20.0,
+            300.0);
+        spawn.rotationSpeed = std::max(
+            20.0,
+            object.value("rotationSpeed").toDouble(180.0));
+        spawn.projectileSpeed = std::max(
+            80.0,
+            object.value("projectileSpeed").toDouble(420.0));
+        spawn.warningTime = std::max(
+            0.1,
+            object.value("warning").toDouble(0.6));
+        spawn.stunTime = std::max(
+            0.2,
+            object.value("stun").toDouble(2.5));
+        spawn.contactDamage = std::max(
+            1,
+            object.value("damage").toInt(1));
+        spawn.shieldAngle = std::clamp(
+            object.value("shieldAngle").toDouble(130.0),
+            45.0,
+            180.0);
+        spawn.fireCooldown = std::max(
+            0.3,
+            object.value("fireCooldown").toDouble(2.4));
+
+        for (const QJsonValue &patrolValue : object.value("patrol").toArray()) {
+            spawn.patrol << pointFromArray(patrolValue);
+        }
+
+        enemies_ << spawn;
     }
 
     for (const QJsonValue &value : root.value("coins").toArray()) {

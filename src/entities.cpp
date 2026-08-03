@@ -326,7 +326,7 @@ Projectile Player::shoot()
 
 void Player::damage(double sourceX)
 {
-    if (invuln_ > 0 || health_ <= 0) {
+    if (godMode_ || invuln_ > 0 || health_ <= 0) {
         return;
     }
 
@@ -336,6 +336,9 @@ void Player::damage(double sourceX)
     vel_.setY(-400);
     vel_.setX(rect_.center().x() < sourceX ? -330 : 330);
 }
+
+void Player::setGodMode(bool enabled) { godMode_ = enabled; }
+bool Player::godMode() const { return godMode_; }
 
 void Player::heal(int amount) { health_ = std::min(5, health_ + amount); }
 void Player::addAmmo(int amount) { ammo_ = std::min(99, ammo_ + amount); }
@@ -348,6 +351,10 @@ int Player::health() const { return health_; }
 int Player::ammo() const { return ammo_; }
 int Player::score() const { return score_; }
 bool Player::dead() const { return health_ <= 0; }
+bool Player::grounded() const { return onGround_; }
+bool Player::climbing() const { return climbing_; }
+bool Player::invulnerable() const { return invuln_ > 0.0; }
+int Player::keyCount() const { return static_cast<int>(keys_.size()); }
 
 void Player::draw(QPainter &painter, double cameraX) const
 {

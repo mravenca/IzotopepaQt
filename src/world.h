@@ -1,6 +1,11 @@
 #pragma once
 
 #include "entities.h"
+#include "drone.h"
+#include "turret.h"
+#include "charger.h"
+#include "shieldsoldier.h"
+#include "enemyfactory.h"
 #include "level.h"
 #include "jumppad.h"
 #include "pressureplate.h"
@@ -9,6 +14,7 @@
 #include "fallingplatform.h"
 #include "environmentvolume.h"
 #include "worldevent.h"
+#include "combatfeedback.h"
 
 #include <QPointF>
 #include <QRectF>
@@ -88,6 +94,22 @@ struct ExplosionEvent {
 struct JumpPadActivation {
     bool player = false;
     QVector<int> pushBoxes;
+    QVector<int> chargers;
+    QVector<int> shieldSoldiers;
+};
+
+struct WorldDebugStats {
+    int legacyEnemies = 0;
+    int drones = 0;
+    int turrets = 0;
+    int chargers = 0;
+    int shields = 0;
+    int projectiles = 0;
+    int particles = 0;
+    double cameraShake = 0.0;
+    bool hitStop = false;
+    bool playerOnIce = false;
+    QString selectedEnemy;
 };
 
 class World {
@@ -95,6 +117,8 @@ public:
     World(const SpriteSheet *playerSheet, const SpriteSheet *enemySheet);
 
     bool loadLevel(int index);
+    bool loadLevelFile(const QString &fileName);
+    bool restartLevel();
     void resetFromCheckpoint();
     void update(double dt);
     void draw(QPainter &painter, double cameraX) const;
@@ -117,10 +141,32 @@ public:
     void toggleSound();
     bool soundEnabled() const;
     QString message() const;
+    QString enemyDebugText() const;
+    WorldDebugStats debugStats() const;
+    void setGodMode(bool enabled);
+    bool godMode() const;
+    void setDeveloperSession(bool enabled);
+    bool developerSession() const;
 
 private:
+    bool initializeLoadedLevel();
     void rebuildCollision();
     void explode(QPointF position, QColor color);
+    void combatImpact(
+        const QPointF &position,
+        CombatImpact impact,
+        double intensity = 1.0,
+        QColor accent = QColor());
+    void enemyDeath(
+        const QPointF &position,
+        QColor accent,
+        int reward,
+        const QString &audioEventName);
+    void requestCombatFeedback(
+        double shakeDuration,
+        double shakeStrength,
+        double hitStop = 0.0);
+    void audioEvent(const QString &name) const;
     void applyExplosion(const ExplosionEvent &event);
     void destroyCrate(Crate &crate);
     void updatePushBoxes(double dt);
@@ -151,6 +197,10 @@ private:
     Player player_;
 
     QVector<Enemy> enemies_;
+    QVector<Drone> drones_;
+    QVector<Turret> turrets_;
+    QVector<Charger> chargers_;
+    QVector<ShieldSoldier> shieldSoldiers_;
     QVector<MovingPlatform> moving_;
     QVector<Coin> coins_;
     QVector<Pickup> pickups_;
@@ -182,12 +232,14 @@ private:
     bool inputLeft_ = false;
     bool inputRight_ = false;
     bool inputDown_ = false;
+    bool developerSession_ = false;
 
     QString message_;
     double messageTime_ = 0;
     double shakeTime_ = 0;
     double shakeStrength_ = 0;
     double animationTime_ = 0;
+    double hitStop_ = 0;
     double oneWayDropTimer_ = 0;
     bool playerWasInWater_ = false;
 };

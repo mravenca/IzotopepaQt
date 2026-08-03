@@ -107,6 +107,77 @@
       "y": 270,
       "left": 4020,
       "right": 4400
+    },
+    {
+      "kind": "drone",
+      "x": 2830,
+      "y": 225,
+      "patrol": [
+        [
+          2550,
+          225
+        ],
+        [
+          3140,
+          245
+        ]
+      ],
+      "speed": 155,
+      "vision": 450,
+      "health": 4,
+      "burst": 3,
+      "reload": 1.8
+    },
+    {
+      "kind": "turret",
+      "x": 2060,
+      "y": 524,
+      "mount": "floor",
+      "direction": "right",
+      "vision": 460,
+      "visionAngle": 115,
+      "health": 5,
+      "burst": 4,
+      "reload": 2.2,
+      "projectileSpeed": 430
+    },
+    {
+      "kind": "turret",
+      "x": 3190,
+      "y": 300,
+      "mount": "ceiling",
+      "direction": "left",
+      "vision": 430,
+      "visionAngle": 130,
+      "health": 4,
+      "burst": 3,
+      "reload": 2.0,
+      "projectileSpeed": 420
+    },
+    {
+      "kind": "charger",
+      "x": 2480,
+      "y": 500,
+      "left": 2320,
+      "right": 2900,
+      "vision": 540,
+      "warning": 0.55,
+      "speed": 560,
+      "stun": 2.5,
+      "health": 6,
+      "damage": 1
+    },
+    {
+      "kind": "shield",
+      "x": 2640,
+      "y": 498,
+      "left": 2480,
+      "right": 2860,
+      "vision": 450,
+      "speed": 96,
+      "health": 7,
+      "shieldAngle": 135,
+      "fireCooldown": 2.2
     }
   ],
   "coins": [

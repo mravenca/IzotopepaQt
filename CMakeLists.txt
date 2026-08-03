@@ -13,12 +13,30 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
 add_executable(IzotopepaQtGameV3
     src/main.cpp
+    src/developeroptions.cpp
+    src/developeroptions.h
+    src/developeroverlay.cpp
+    src/developeroverlay.h
     src/gamewidget.cpp
     src/gamewidget.h
     src/world.cpp
     src/world.h
+    src/combatfeedback.cpp
+    src/combatfeedback.h
     src/entities.cpp
     src/entities.h
+    src/enemybrain.cpp
+    src/enemybrain.h
+    src/drone.cpp
+    src/drone.h
+    src/turret.cpp
+    src/turret.h
+    src/charger.cpp
+    src/charger.h
+    src/shieldsoldier.cpp
+    src/shieldsoldier.h
+    src/enemyfactory.cpp
+    src/enemyfactory.h
     src/level.cpp
     src/level.h
     src/jumppad.cpp

@@ -11,6 +11,22 @@ struct EnemySpawn {
     QPointF position;
     double leftLimit = 0;
     double rightLimit = 0;
+    QVector<QPointF> patrol;
+    double speed = 140.0;
+    double vision = 420.0;
+    int health = 3;
+    int burst = 3;
+    double reload = 2.0;
+    QString mount = "floor";
+    int direction = -1;
+    double visionAngle = 100.0;
+    double rotationSpeed = 180.0;
+    double projectileSpeed = 420.0;
+    double warningTime = 0.6;
+    double stunTime = 2.5;
+    int contactDamage = 1;
+    double shieldAngle = 130.0;
+    double fireCooldown = 2.4;
 };
 
 struct MovingSpawn {

@@ -1,3 +1,65 @@
+
+## Developer Tools DT3 — Debug Overlay 2.0
+
+### Added
+- Structured F3 developer HUD with session, performance, player, enemy, combat, and camera diagnostics.
+- Shift+F3 compact debug layout.
+- Player movement-state and collected-key diagnostics.
+- Shared world debug statistics for enemy and effect counts.
+## Developer Tools 1.0 — DT2 Runtime Shortcuts
+
+### Added
+- F5 reloads the current level from disk.
+- F6 reloads an external `--level-file` session.
+- Ctrl+R restarts runtime state without reparsing JSON.
+- Ctrl+PageUp and Ctrl+PageDown switch campaign levels.
+- Short on-screen status confirmations for developer actions.
+
+## Developer Tools 1.0 — DT1
+
+### Added
+- `--level 1-10` for direct campaign-level startup.
+- `--level-file <path>` for loading an external JSON level.
+- `--debug` for enabling the F3 overlay at startup.
+- `--god` for disabling player damage.
+- Clear developer-mode window titles.
+
+## M8.5 - Combat Polish
+
+### Added
+- Shared combat impact and death particle recipes.
+- Subtle hit-stop for major impacts and enemy deaths.
+- Named audio-event hooks with the existing beep fallback.
+- Expanded F3 combat diagnostics and balancing documentation.
+
+## M8.4 - Shield Soldier
+
+### Added
+- Tactical Shield Soldier with frontal bullet blocking.
+- Vulnerability from behind, above, explosions, and environmental hazards.
+- Jump-pad, conveyor, water, ice, and falling-platform integration.
+- F3 diagnostics and campaign placements.
+
+## M8.3 - Charger
+
+### Added
+- Charger enemy with warning, charge, stun and recovery states.
+- Interactions with boxes, crates, barrels, jump pads, conveyors, water, ice and falling platforms.
+- Charger JSON configuration, diagnostics and campaign placements.
+
+## M8.2 - Turret and Enemy Factory
+
+- Added floor- and ceiling-mounted turrets with directional vision cones.
+- Added sequential burst fire, rotation, recoil and muzzle flash.
+- Added explosion vulnerability and debug diagnostics.
+- Added `EnemyFactory` for new-framework enemy creation.
+
+## M8.1 - Enemy Framework and Drone
+
+### Added
+- Reusable EnemyBrain state machine.
+- Flying drone with waypoint patrol, perception, burst fire, knockback, animation, and F3 diagnostics.
+
 ## M7 — Factory Escape Showcase World
 
 ### Added
@@ -42,6 +104,11 @@
 # Changelog
 
 ## Unreleased
+
+### Added
+- DT4 isolated developer sessions with save protection.
+- Developer Mode window title, watermark, and F3 save-status diagnostics.
+
 
 ### Added
 - M1 Spring Awakening: animated JSON-configurable jump pads.

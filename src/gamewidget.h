@@ -1,5 +1,7 @@
 #pragma once
 
+#include "developeroptions.h"
+#include "developeroverlay.h"
 #include "world.h"
 
 #include <QElapsedTimer>
@@ -9,7 +11,9 @@
 class GameWidget : public QWidget
 {
 public:
-    explicit GameWidget(QWidget *parent = nullptr);
+    explicit GameWidget(
+        const DeveloperOptions &options = {},
+        QWidget *parent = nullptr);
 
 protected:
     void paintEvent(QPaintEvent *) override;
@@ -21,6 +25,13 @@ private:
 
     void loop();
     void startLevel(int level);
+    void startLevelFile(const QString &fileName);
+    void reloadCurrentLevel();
+    void reloadExternalLevel();
+    void restartCurrentLevel();
+    void switchCampaignLevel(int delta);
+    void showDeveloperStatus(const QString &text);
+    void updateWindowTitle();
     void updateMode();
     void drawBackground(QPainter &painter);
     void drawPlatforms(QPainter &painter);
@@ -45,6 +56,12 @@ private:
     bool up_ = false;
     bool down_ = false;
     bool debugOverlay_ = false;
+    bool compactDebugOverlay_ = false;
+    DeveloperOverlay developerOverlayRenderer_;
+    DeveloperOptions developerOptions_;
+    QString directLevelFile_;
+    QString developerStatus_;
+    double developerStatusTime_ = 0.0;
 
     int menuIndex_ = 0;
     int unlocked_ = 0;
