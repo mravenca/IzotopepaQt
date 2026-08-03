@@ -151,14 +151,24 @@ bool Level::load(const QString &requestedPath)
 
     for (const QJsonValue &value : root.value("enemies").toArray()) {
         const QJsonObject object = value.toObject();
-        enemies_ << EnemySpawn {
-            object.value("kind").toString("walker"),
-            QPointF(
-                object.value("x").toDouble(),
-                object.value("y").toDouble()),
-            object.value("left").toDouble(),
-            object.value("right").toDouble()
-        };
+        EnemySpawn spawn;
+        spawn.kind = object.value("kind").toString("walker");
+        spawn.position = QPointF(
+            object.value("x").toDouble(),
+            object.value("y").toDouble());
+        spawn.leftLimit = object.value("left").toDouble();
+        spawn.rightLimit = object.value("right").toDouble();
+        spawn.speed = object.value("speed").toDouble(140.0);
+        spawn.vision = object.value("vision").toDouble(420.0);
+        spawn.health = std::max(1, object.value("health").toInt(3));
+        spawn.burst = std::clamp(object.value("burst").toInt(3), 1, 6);
+        spawn.reload = std::max(0.1, object.value("reload").toDouble(2.0));
+
+        for (const QJsonValue &patrolValue : object.value("patrol").toArray()) {
+            spawn.patrol << pointFromArray(patrolValue);
+        }
+
+        enemies_ << spawn;
     }
 
     for (const QJsonValue &value : root.value("coins").toArray()) {

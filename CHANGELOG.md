@@ -1,3 +1,9 @@
+## M8.1 - Enemy Framework and Drone
+
+### Added
+- Reusable EnemyBrain state machine.
+- Flying drone with waypoint patrol, perception, burst fire, knockback, animation, and F3 diagnostics.
+
 ## M7 — Factory Escape Showcase World
 
 ### Added

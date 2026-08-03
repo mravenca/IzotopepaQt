@@ -64,7 +64,30 @@ void GameWidget::drawBackground(QPainter &p)
 
 void GameWidget::drawPlatforms(QPainter&p){/* Static geometry is intentionally drawn from the level-independent collision silhouette via world objects; ground strip provides visual continuity. */p.fillRect(QRectF(0,570,W,70),QColor(70,110,50));p.fillRect(QRectF(0,570,W,8),QColor(120,175,75));}
 void GameWidget::drawHud(QPainter&p){p.setPen(Qt::NoPen);p.setBrush(QColor(20,20,28,220));p.drawRoundedRect(QRectF(12,12,430,80),8,8);p.fillRect(QRectF(25,28,170,20),QColor(60,60,70));p.fillRect(QRectF(25,28,170.0*std::max(0,world_.player().health())/5.0,20),QColor(210,55,55));p.setPen(Qt::white);p.setFont(QFont("Arial",11,QFont::Bold));p.drawText(QRectF(28,25,180,25),Qt::AlignVCenter,QString("Health %1/5").arg(std::max(0,world_.player().health())));p.drawText(QRectF(25,55,400,25),Qt::AlignVCenter,QString("Ammo %1     Score %2     %3").arg(world_.player().ammo()).arg(world_.player().score()).arg(world_.levelName()));if(!world_.message().isEmpty()){p.setBrush(QColor(0,0,0,170));p.setPen(Qt::NoPen);p.drawRoundedRect(QRectF(330,105,300,42),8,8);p.setPen(Qt::yellow);p.drawText(QRectF(330,105,300,42),Qt::AlignCenter,world_.message());}if(debugOverlay_)drawDebugOverlay(p);}
-void GameWidget::drawDebugOverlay(QPainter&p){p.save();p.setPen(Qt::NoPen);p.setBrush(QColor(0,0,0,185));p.drawRoundedRect(QRectF(W-220,12,208,88),6,6);p.setPen(QColor(120,255,140));p.setFont(QFont("Monospace",10));const QRectF r(W-210,20,190,70);p.drawText(r,Qt::AlignLeft|Qt::AlignTop,QString("FPS: %1\nCamera X: %2\nLook ahead: %3\nPlayer: %4, %5\nF3: hide debug").arg(fps_,0,'f',1).arg(camera_.x(),0,'f',1).arg(camera_.lookAhead(),0,'f',1).arg(world_.player().rect().x(),0,'f',1).arg(world_.player().rect().y(),0,'f',1));p.restore();}
+void GameWidget::drawDebugOverlay(QPainter &p)
+{
+    p.save();
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(0, 0, 0, 190));
+    p.drawRoundedRect(QRectF(W - 310, 12, 298, 166), 6, 6);
+    p.setPen(QColor(120, 255, 140));
+    p.setFont(QFont("Monospace", 10));
+
+    const QString text = QString(
+        "FPS: %1\nCamera X: %2  Look: %3\nPlayer: %4, %5\n%6\nF3: hide debug")
+        .arg(fps_, 0, 'f', 1)
+        .arg(camera_.x(), 0, 'f', 1)
+        .arg(camera_.lookAhead(), 0, 'f', 1)
+        .arg(world_.player().rect().x(), 0, 'f', 1)
+        .arg(world_.player().rect().y(), 0, 'f', 1)
+        .arg(world_.enemyDebugText());
+
+    p.drawText(
+        QRectF(W - 298, 20, 276, 148),
+        Qt::AlignLeft | Qt::AlignTop,
+        text);
+    p.restore();
+}
 void GameWidget::drawMenu(QPainter&p,const QString&t,const QStringList&items){p.fillRect(rect(),QColor(0,0,0,150));p.setPen(QColor(255,220,45));p.setFont(QFont("Arial",32,QFont::Bold));p.drawText(QRectF(70,70,W-140,70),Qt::AlignCenter,t);p.setFont(QFont("Arial",17));for(int i=0;i<items.size();++i){QRectF r(180,175+i*55,600,42);if(i==menuIndex_){p.setBrush(QColor(255,220,45,190));p.setPen(Qt::NoPen);p.drawRoundedRect(r,6,6);p.setPen(Qt::black);}else p.setPen(Qt::white);p.drawText(r,Qt::AlignCenter,items[i]);}}
 void GameWidget::keyPressEvent(QKeyEvent*e){if(e->isAutoRepeat())return;int k=e->key();if(k==Qt::Key_F3){debugOverlay_=!debugOverlay_;update();return;}if(mode_==Mode::Playing){if(k==Qt::Key_Left||k==Qt::Key_A)left_=true;else if(k==Qt::Key_Right||k==Qt::Key_D)right_=true;else if(k==Qt::Key_Up||k==Qt::Key_W)up_=true;else if(k==Qt::Key_Down||k==Qt::Key_S)down_=true;else if(k==Qt::Key_Space)world_.jump();else if(k==Qt::Key_F||k==Qt::Key_Control)world_.shoot();else if(k==Qt::Key_E)world_.interact();else if(k==Qt::Key_P||k==Qt::Key_Escape){mode_=Mode::Paused;menuIndex_=0;}return;}if(k==Qt::Key_Up){menuIndex_=std::max(0,menuIndex_-1);return;}if(k==Qt::Key_Down){++menuIndex_;return;}if(k==Qt::Key_Backspace||k==Qt::Key_Escape){mode_=Mode::Menu;menuIndex_=0;return;}if(k!=Qt::Key_Return&&k!=Qt::Key_Enter&&k!=Qt::Key_Space)return;
  if(mode_==Mode::Menu){if(menuIndex_==0)startLevel(0);else if(menuIndex_==1){startLevel(unlocked_);}else if(menuIndex_==2){mode_=Mode::Help;menuIndex_=0;}else if(menuIndex_==3){mode_=Mode::Settings;menuIndex_=0;}else close();}

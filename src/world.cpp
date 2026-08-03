@@ -124,9 +124,26 @@ bool World::loadLevel(int index)
     respawn_ = level_.playerSpawn();
 
     enemies_.clear();
+    drones_.clear();
     for (const auto &spawn : level_.enemies()) {
-        enemies_ << Enemy(enemySheet_, spawn.kind, spawn.position,
-                          spawn.leftLimit, spawn.rightLimit);
+        if (spawn.kind == "drone") {
+            DroneConfig config;
+            config.position = spawn.position;
+            config.patrol = spawn.patrol;
+            config.speed = spawn.speed;
+            config.vision = spawn.vision;
+            config.health = spawn.health;
+            config.burst = spawn.burst;
+            config.reload = spawn.reload;
+            drones_ << Drone(config);
+        } else {
+            enemies_ << Enemy(
+                enemySheet_,
+                spawn.kind,
+                spawn.position,
+                spawn.leftLimit,
+                spawn.rightLimit);
+        }
     }
 
     moving_.clear();
@@ -461,6 +478,14 @@ void World::update(double dt)
             enemyWater ? enemyWater->buoyancy() : 0.72);
     }
 
+    for (Drone &drone : drones_) {
+        drone.update(
+            dt,
+            player_.rect().center(),
+            collision_,
+            projectiles_);
+    }
+
     for (int first = 0; first < enemies_.size(); ++first) {
         if (!enemies_[first].alive()) {
             continue;
@@ -660,6 +685,33 @@ void World::update(double dt)
                 explode(projectile.rect.center(), Qt::red);
             }
         } else {
+            bool hitDrone = false;
+            for (Drone &drone : drones_) {
+                if (drone.alive()
+                    && projectile.rect.intersects(drone.rect())) {
+                    drone.damage(1, projectile.rect.center());
+                    projectile.alive = false;
+                    hitDrone = true;
+                    explode(projectile.rect.center(), Qt::yellow);
+                    shakeTime_ = std::max(shakeTime_, 0.10);
+                    shakeStrength_ = std::max(shakeStrength_, 3.0);
+
+                    if (!drone.alive()) {
+                        player_.addScore(drone.reward());
+                        explode(drone.rect().center(), QColor(255, 95, 40));
+                        explode(drone.rect().center() + QPointF(8, -8), Qt::yellow);
+                        shakeTime_ = std::max(shakeTime_, 0.30);
+                        shakeStrength_ = std::max(shakeStrength_, 8.0);
+                        beep();
+                    }
+                    break;
+                }
+            }
+
+            if (hitDrone) {
+                continue;
+            }
+
             for (auto &enemy : enemies_) {
                 if (enemy.alive() && projectile.rect.intersects(enemy.rect())) {
                     enemy.damage(1, projectile.rect.center().x());
@@ -1569,6 +1621,18 @@ void World::applyExplosion(const ExplosionEvent &event)
         }
     }
 
+    for (Drone &drone : drones_) {
+        if (!drone.alive() || !inside(drone.rect().center())) {
+            continue;
+        }
+
+        const bool wasAlive = drone.alive();
+        drone.applyExplosion(event.center, event.damage);
+        if (wasAlive && !drone.alive()) {
+            player_.addScore(drone.reward());
+        }
+    }
+
     bool collisionChanged = false;
 
     for (auto &crate : crates_) {
@@ -1984,6 +2048,10 @@ void World::draw(QPainter &painter, double cameraX) const
         }
     }
 
+    for (const Drone &drone : drones_) {
+        drone.draw(painter, cameraX, animationTime_);
+    }
+
     for (const auto &enemy : enemies_) {
         enemy.draw(painter, cameraX);
     }
@@ -2057,3 +2125,16 @@ bool World::gameOver() const { return gameOver_; }
 void World::toggleSound() { sound_ = !sound_; }
 bool World::soundEnabled() const { return sound_; }
 QString World::message() const { return message_; }
+
+QString World::enemyDebugText() const
+{
+    for (const Drone &drone : drones_) {
+        if (drone.alive()) {
+            return drone.debugText();
+        }
+    }
+
+    return QString("Enemies: %1  Drones: %2")
+        .arg(enemies_.size())
+        .arg(drones_.size());
+}

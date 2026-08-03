@@ -1,6 +1,7 @@
 #pragma once
 
 #include "entities.h"
+#include "drone.h"
 #include "level.h"
 #include "jumppad.h"
 #include "pressureplate.h"
@@ -117,6 +118,7 @@ public:
     void toggleSound();
     bool soundEnabled() const;
     QString message() const;
+    QString enemyDebugText() const;
 
 private:
     void rebuildCollision();
@@ -151,6 +153,7 @@ private:
     Player player_;
 
     QVector<Enemy> enemies_;
+    QVector<Drone> drones_;
     QVector<MovingPlatform> moving_;
     QVector<Coin> coins_;
     QVector<Pickup> pickups_;

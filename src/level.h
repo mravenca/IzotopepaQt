@@ -11,6 +11,12 @@ struct EnemySpawn {
     QPointF position;
     double leftLimit = 0;
     double rightLimit = 0;
+    QVector<QPointF> patrol;
+    double speed = 140.0;
+    double vision = 420.0;
+    int health = 3;
+    int burst = 3;
+    double reload = 2.0;
 };
 
 struct MovingSpawn {
