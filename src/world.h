@@ -2,6 +2,8 @@
 
 #include "entities.h"
 #include "drone.h"
+#include "turret.h"
+#include "enemyfactory.h"
 #include "level.h"
 #include "jumppad.h"
 #include "pressureplate.h"
@@ -154,6 +156,7 @@ private:
 
     QVector<Enemy> enemies_;
     QVector<Drone> drones_;
+    QVector<Turret> turrets_;
     QVector<MovingPlatform> moving_;
     QVector<Coin> coins_;
     QVector<Pickup> pickups_;

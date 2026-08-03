@@ -17,6 +17,11 @@ struct EnemySpawn {
     int health = 3;
     int burst = 3;
     double reload = 2.0;
+    QString mount = "floor";
+    int direction = -1;
+    double visionAngle = 100.0;
+    double rotationSpeed = 180.0;
+    double projectileSpeed = 420.0;
 };
 
 struct MovingSpawn {

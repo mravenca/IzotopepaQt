@@ -1,3 +1,10 @@
+## M8.2 - Turret and Enemy Factory
+
+- Added floor- and ceiling-mounted turrets with directional vision cones.
+- Added sequential burst fire, rotation, recoil and muzzle flash.
+- Added explosion vulnerability and debug diagnostics.
+- Added `EnemyFactory` for new-framework enemy creation.
+
 ## M8.1 - Enemy Framework and Drone
 
 ### Added

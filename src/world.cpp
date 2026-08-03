@@ -125,17 +125,13 @@ bool World::loadLevel(int index)
 
     enemies_.clear();
     drones_.clear();
+    turrets_.clear();
+
     for (const auto &spawn : level_.enemies()) {
-        if (spawn.kind == "drone") {
-            DroneConfig config;
-            config.position = spawn.position;
-            config.patrol = spawn.patrol;
-            config.speed = spawn.speed;
-            config.vision = spawn.vision;
-            config.health = spawn.health;
-            config.burst = spawn.burst;
-            config.reload = spawn.reload;
-            drones_ << Drone(config);
+        if (EnemyFactory::isDrone(spawn)) {
+            drones_ << EnemyFactory::createDrone(spawn);
+        } else if (EnemyFactory::isTurret(spawn)) {
+            turrets_ << EnemyFactory::createTurret(spawn);
         } else {
             enemies_ << Enemy(
                 enemySheet_,
@@ -486,6 +482,13 @@ void World::update(double dt)
             projectiles_);
     }
 
+    for (Turret &turret : turrets_) {
+        turret.update(
+            dt,
+            player_.rect().center(),
+            projectiles_);
+    }
+
     for (int first = 0; first < enemies_.size(); ++first) {
         if (!enemies_[first].alive()) {
             continue;
@@ -709,6 +712,33 @@ void World::update(double dt)
             }
 
             if (hitDrone) {
+                continue;
+            }
+
+            bool hitTurret = false;
+            for (Turret &turret : turrets_) {
+                if (turret.alive()
+                    && projectile.rect.intersects(turret.rect())) {
+                    turret.damage(1, projectile.rect.center());
+                    projectile.alive = false;
+                    hitTurret = true;
+                    explode(projectile.rect.center(), Qt::yellow);
+                    shakeTime_ = std::max(shakeTime_, 0.10);
+                    shakeStrength_ = std::max(shakeStrength_, 3.0);
+
+                    if (!turret.alive()) {
+                        player_.addScore(turret.reward());
+                        explode(turret.rect().center(), QColor(255, 95, 40));
+                        explode(turret.rect().center() + QPointF(8, -8), Qt::yellow);
+                        shakeTime_ = std::max(shakeTime_, 0.30);
+                        shakeStrength_ = std::max(shakeStrength_, 8.0);
+                        beep();
+                    }
+                    break;
+                }
+            }
+
+            if (hitTurret) {
                 continue;
             }
 
@@ -1633,6 +1663,18 @@ void World::applyExplosion(const ExplosionEvent &event)
         }
     }
 
+    for (Turret &turret : turrets_) {
+        if (!turret.alive() || !inside(turret.rect().center())) {
+            continue;
+        }
+
+        const bool wasAlive = turret.alive();
+        turret.applyExplosion(event.center, event.damage);
+        if (wasAlive && !turret.alive()) {
+            player_.addScore(turret.reward());
+        }
+    }
+
     bool collisionChanged = false;
 
     for (auto &crate : crates_) {
@@ -2052,6 +2094,10 @@ void World::draw(QPainter &painter, double cameraX) const
         drone.draw(painter, cameraX, animationTime_);
     }
 
+    for (const Turret &turret : turrets_) {
+        turret.draw(painter, cameraX, animationTime_);
+    }
+
     for (const auto &enemy : enemies_) {
         enemy.draw(painter, cameraX);
     }
@@ -2134,7 +2180,14 @@ QString World::enemyDebugText() const
         }
     }
 
-    return QString("Enemies: %1  Drones: %2")
+    for (const Turret &turret : turrets_) {
+        if (turret.alive()) {
+            return turret.debugText();
+        }
+    }
+
+    return QString("Enemies: %1  Drones: %2  Turrets: %3")
         .arg(enemies_.size())
-        .arg(drones_.size());
+        .arg(drones_.size())
+        .arg(turrets_.size());
 }

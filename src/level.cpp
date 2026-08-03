@@ -163,6 +163,19 @@ bool Level::load(const QString &requestedPath)
         spawn.health = std::max(1, object.value("health").toInt(3));
         spawn.burst = std::clamp(object.value("burst").toInt(3), 1, 6);
         spawn.reload = std::max(0.1, object.value("reload").toDouble(2.0));
+        spawn.mount = object.value("mount").toString("floor");
+        const QString direction = object.value("direction").toString("left");
+        spawn.direction = direction.compare("right", Qt::CaseInsensitive) == 0 ? 1 : -1;
+        spawn.visionAngle = std::clamp(
+            object.value("visionAngle").toDouble(100.0),
+            20.0,
+            300.0);
+        spawn.rotationSpeed = std::max(
+            20.0,
+            object.value("rotationSpeed").toDouble(180.0));
+        spawn.projectileSpeed = std::max(
+            80.0,
+            object.value("projectileSpeed").toDouble(420.0));
 
         for (const QJsonValue &patrolValue : object.value("patrol").toArray()) {
             spawn.patrol << pointFromArray(patrolValue);

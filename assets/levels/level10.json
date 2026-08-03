@@ -179,6 +179,32 @@
       "health": 4,
       "burst": 3,
       "reload": 1.7
+    },
+    {
+      "kind": "turret",
+      "x": 1740,
+      "y": 524,
+      "mount": "floor",
+      "direction": "right",
+      "vision": 470,
+      "visionAngle": 120,
+      "health": 5,
+      "burst": 4,
+      "reload": 2.0,
+      "projectileSpeed": 440
+    },
+    {
+      "kind": "turret",
+      "x": 3380,
+      "y": 300,
+      "mount": "ceiling",
+      "direction": "left",
+      "vision": 470,
+      "visionAngle": 140,
+      "health": 5,
+      "burst": 4,
+      "reload": 1.9,
+      "projectileSpeed": 450
     }
   ],
   "coins": [

@@ -23,14 +23,24 @@ void EnemyBrain::update(
     const QPointF &self,
     const QPointF &target)
 {
-    fireCooldown_ = std::max(0.0, fireCooldown_ - dt);
-    targetMemory_ = std::max(0.0, targetMemory_ - dt);
-
     const QPointF delta = target - self;
     const double distance = qSqrt(
         delta.x() * delta.x() + delta.y() * delta.y());
 
-    seesTarget_ = distance <= visionRange_;
+    updateVisible(dt, self, target, distance <= visionRange_);
+}
+
+void EnemyBrain::updateVisible(
+    double dt,
+    const QPointF &self,
+    const QPointF &target,
+    bool targetVisible)
+{
+    Q_UNUSED(self);
+
+    fireCooldown_ = std::max(0.0, fireCooldown_ - dt);
+    targetMemory_ = std::max(0.0, targetMemory_ - dt);
+    seesTarget_ = targetVisible;
 
     if (seesTarget_) {
         lastKnownTarget_ = target;

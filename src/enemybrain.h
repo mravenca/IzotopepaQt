@@ -17,6 +17,11 @@ public:
 
     void reset();
     void update(double dt, const QPointF &self, const QPointF &target);
+    void updateVisible(
+        double dt,
+        const QPointF &self,
+        const QPointF &target,
+        bool targetVisible);
     void consumeShot();
 
     EnemyState state() const;

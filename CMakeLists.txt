@@ -23,6 +23,10 @@ add_executable(IzotopepaQtGameV3
     src/enemybrain.h
     src/drone.cpp
     src/drone.h
+    src/turret.cpp
+    src/turret.h
+    src/enemyfactory.cpp
+    src/enemyfactory.h
     src/level.cpp
     src/level.h
     src/jumppad.cpp
