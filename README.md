@@ -10,13 +10,75 @@ A modern **2D platform game** and **reusable game engine** written in
 -   Reusable enemy framework
 -   Developer tools
 
-## Building
+# Building Izotopepa on Linux
+
+This guide explains how to build **Izotopepa Complete Edition** on
+Linux.
+
+## Prerequisites
+
+-   C++17 compiler
+-   Qt 6 development packages
+-   CMake
+-   Ninja (recommended)
+-   Git
+
+### Fedora
 
 ``` bash
-cmake -S . -B build -G Ninja
+sudo dnf install git cmake ninja-build gcc-c++ qt6-qtbase-devel qt6-qttools-devel
+```
+
+## Clone
+
+``` bash
+git clone https://github.com/mravenca/IzotopepaQt.git
+cd IzotopepaQt
+```
+
+## Debug build
+
+``` bash
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ./build/IzotopepaQtGameV3
 ```
+
+## Release build
+
+``` bash
+cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build-release
+./build-release/IzotopepaQtGameV3
+```
+
+## Developer mode
+
+``` bash
+./build-release/IzotopepaQtGameV3 --level 7
+./build-release/IzotopepaQtGameV3 --debug
+./build-release/IzotopepaQtGameV3 --god
+./build-release/IzotopepaQtGameV3 --level-file assets/levels/test.json
+```
+
+## Packaging
+
+``` bash
+mkdir -p dist/Izotopepa
+cp build-release/IzotopepaQtGameV3 dist/Izotopepa/
+cp build-release/IzotopepaLevelEditor dist/Izotopepa/
+cp README.md LICENSE CHANGELOG.md dist/Izotopepa/
+cp -r assets dist/Izotopepa/
+tar -C dist -czf Izotopepa-linux-x86_64.tar.gz Izotopepa
+```
+
+## Troubleshooting
+
+``` bash
+ldd build-release/IzotopepaQtGameV3
+```
+
+
 # Building Izotopepa on Windows
 
 This guide explains how to build **Izotopepa Complete Edition** on
