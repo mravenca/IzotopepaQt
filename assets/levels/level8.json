@@ -115,6 +115,18 @@
       "burst": 3,
       "reload": 2.5,
       "projectileSpeed": 390
+    },
+    {
+      "kind": "shield",
+      "x": 2060,
+      "y": 498,
+      "left": 1900,
+      "right": 2310,
+      "vision": 420,
+      "speed": 88,
+      "health": 6,
+      "shieldAngle": 130,
+      "fireCooldown": 2.5
     }
   ],
   "coins": [

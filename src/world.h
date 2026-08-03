@@ -4,6 +4,7 @@
 #include "drone.h"
 #include "turret.h"
 #include "charger.h"
+#include "shieldsoldier.h"
 #include "enemyfactory.h"
 #include "level.h"
 #include "jumppad.h"
@@ -93,6 +94,7 @@ struct JumpPadActivation {
     bool player = false;
     QVector<int> pushBoxes;
     QVector<int> chargers;
+    QVector<int> shieldSoldiers;
 };
 
 class World {
@@ -160,6 +162,7 @@ private:
     QVector<Drone> drones_;
     QVector<Turret> turrets_;
     QVector<Charger> chargers_;
+    QVector<ShieldSoldier> shieldSoldiers_;
     QVector<MovingPlatform> moving_;
     QVector<Coin> coins_;
     QVector<Pickup> pickups_;

@@ -166,6 +166,18 @@
       "stun": 2.5,
       "health": 6,
       "damage": 1
+    },
+    {
+      "kind": "shield",
+      "x": 2640,
+      "y": 498,
+      "left": 2480,
+      "right": 2860,
+      "vision": 450,
+      "speed": 96,
+      "health": 7,
+      "shieldAngle": 135,
+      "fireCooldown": 2.2
     }
   ],
   "coins": [

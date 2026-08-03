@@ -185,6 +185,13 @@ bool Level::load(const QString &requestedPath)
         spawn.contactDamage = std::max(
             1,
             object.value("damage").toInt(1));
+        spawn.shieldAngle = std::clamp(
+            object.value("shieldAngle").toDouble(130.0),
+            45.0,
+            180.0);
+        spawn.fireCooldown = std::max(
+            0.3,
+            object.value("fireCooldown").toDouble(2.4));
 
         for (const QJsonValue &patrolValue : object.value("patrol").toArray()) {
             spawn.patrol << pointFromArray(patrolValue);

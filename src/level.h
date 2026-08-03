@@ -25,6 +25,8 @@ struct EnemySpawn {
     double warningTime = 0.6;
     double stunTime = 2.5;
     int contactDamage = 1;
+    double shieldAngle = 130.0;
+    double fireCooldown = 2.4;
 };
 
 struct MovingSpawn {

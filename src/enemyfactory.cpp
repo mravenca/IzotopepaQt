@@ -15,6 +15,13 @@ bool EnemyFactory::isCharger(const EnemySpawn &spawn)
     return spawn.kind.compare("charger", Qt::CaseInsensitive) == 0;
 }
 
+
+bool EnemyFactory::isShieldSoldier(const EnemySpawn &spawn)
+{
+    return spawn.kind.compare("shield", Qt::CaseInsensitive) == 0
+        || spawn.kind.compare("shieldSoldier", Qt::CaseInsensitive) == 0;
+}
+
 Drone EnemyFactory::createDrone(const EnemySpawn &spawn)
 {
     DroneConfig config;
@@ -57,4 +64,18 @@ Charger EnemyFactory::createCharger(const EnemySpawn &spawn)
     config.health = spawn.health;
     config.contactDamage = spawn.contactDamage;
     return Charger(config);
+}
+
+ShieldSoldier EnemyFactory::createShieldSoldier(const EnemySpawn &spawn)
+{
+    ShieldSoldierConfig config;
+    config.position = spawn.position;
+    config.leftLimit = spawn.leftLimit;
+    config.rightLimit = spawn.rightLimit;
+    config.vision = spawn.vision;
+    config.speed = spawn.speed;
+    config.shieldAngle = spawn.shieldAngle;
+    config.fireCooldown = spawn.fireCooldown;
+    config.health = spawn.health;
+    return ShieldSoldier(config);
 }

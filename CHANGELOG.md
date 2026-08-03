@@ -1,3 +1,11 @@
+## M8.4 - Shield Soldier
+
+### Added
+- Tactical Shield Soldier with frontal bullet blocking.
+- Vulnerability from behind, above, explosions, and environmental hazards.
+- Jump-pad, conveyor, water, ice, and falling-platform integration.
+- F3 diagnostics and campaign placements.
+
 ## M8.3 - Charger
 
 ### Added

@@ -127,6 +127,7 @@ bool World::loadLevel(int index)
     drones_.clear();
     turrets_.clear();
     chargers_.clear();
+    shieldSoldiers_.clear();
 
     for (const auto &spawn : level_.enemies()) {
         if (EnemyFactory::isDrone(spawn)) {
@@ -135,6 +136,8 @@ bool World::loadLevel(int index)
             turrets_ << EnemyFactory::createTurret(spawn);
         } else if (EnemyFactory::isCharger(spawn)) {
             chargers_ << EnemyFactory::createCharger(spawn);
+        } else if (EnemyFactory::isShieldSoldier(spawn)) {
+            shieldSoldiers_ << EnemyFactory::createShieldSoldier(spawn);
         } else {
             enemies_ << Enemy(
                 enemySheet_,
@@ -635,6 +638,19 @@ void World::update(double dt)
         }
     }
 
+    for (ShieldSoldier &soldier : shieldSoldiers_) {
+        const WaterZone *soldierWater = waterZoneFor(soldier.rect());
+        soldier.update(
+            dt,
+            player_.rect().center(),
+            collision_,
+            oneWayRects(),
+            soldierWater != nullptr,
+            conveyorSpeedBelow(soldier.rect()),
+            iceFrictionBelow(soldier.rect()),
+            projectiles_);
+    }
+
     for (auto &projectile : projectiles_) {
         if (!projectile.alive) {
             continue;
@@ -846,6 +862,44 @@ void World::update(double dt)
                 continue;
             }
 
+            bool hitShieldSoldier = false;
+            for (ShieldSoldier &soldier : shieldSoldiers_) {
+                if (!soldier.alive()
+                    || !projectile.rect.intersects(soldier.rect())) {
+                    continue;
+                }
+
+                const ShieldBulletResult result =
+                    soldier.receiveBullet(
+                        1,
+                        projectile.rect.center()
+                            - projectile.velocity.toPointF() * 0.05);
+                projectile.alive = false;
+                hitShieldSoldier = true;
+
+                if (result == ShieldBulletResult::Blocked) {
+                    explode(projectile.rect.center(), QColor(120, 220, 255));
+                    message_ = "Shield blocked the shot";
+                    messageTime_ = 0.55;
+                } else {
+                    explode(projectile.rect.center(), Qt::yellow);
+                    shakeTime_ = std::max(shakeTime_, 0.10);
+                    shakeStrength_ = std::max(shakeStrength_, 3.0);
+                }
+
+                if (result == ShieldBulletResult::Destroyed) {
+                    player_.addScore(soldier.reward());
+                    explode(soldier.rect().center(), QColor(80, 175, 230));
+                    explode(soldier.rect().center() + QPointF(8, -8), Qt::yellow);
+                    beep();
+                }
+                break;
+            }
+
+            if (hitShieldSoldier) {
+                continue;
+            }
+
             for (auto &enemy : enemies_) {
                 if (enemy.alive() && projectile.rect.intersects(enemy.rect())) {
                     enemy.damage(1, projectile.rect.center().x());
@@ -990,6 +1044,11 @@ bool World::fallingPlatformRespawnClear(const QRectF &rect) const
             return false;
         }
     }
+    for (const ShieldSoldier &soldier : shieldSoldiers_) {
+        if (soldier.alive() && soldier.rect().intersects(safetyArea)) {
+            return false;
+        }
+    }
 
     for (const Crate &crate : crates_) {
         if (crate.alive && crate.rect.intersects(safetyArea)) {
@@ -1044,6 +1103,16 @@ void World::updateFallingPlatforms(double dt)
                     if (charger.alive()
                         && standingOnFallingPlatform(
                             charger.rect(), platform.rect())) {
+                        occupied = true;
+                        break;
+                    }
+                }
+            }
+            if (!occupied) {
+                for (const ShieldSoldier &soldier : shieldSoldiers_) {
+                    if (soldier.alive()
+                        && standingOnFallingPlatform(
+                            soldier.rect(), platform.rect())) {
                         occupied = true;
                         break;
                     }
@@ -1313,6 +1382,35 @@ void World::updateJumpPads(double dt)
             }
         }
 
+        for (int soldierIndex = 0;
+             soldierIndex < shieldSoldiers_.size();
+             ++soldierIndex) {
+            ShieldSoldier &soldier = shieldSoldiers_[soldierIndex];
+            if (!soldier.alive()
+                || activation.shieldSoldiers.contains(soldierIndex)
+                || soldier.velocity().y() < -10.0f) {
+                continue;
+            }
+
+            const QRectF feet(
+                soldier.rect().left() + 5.0,
+                soldier.rect().bottom() - 5.0,
+                soldier.rect().width() - 10.0,
+                10.0);
+            if (!feet.intersects(trigger)) {
+                continue;
+            }
+
+            const bool compressionCycleActive =
+                activation.player
+                || !activation.pushBoxes.isEmpty()
+                || !activation.chargers.isEmpty()
+                || !activation.shieldSoldiers.isEmpty();
+            if (pad.requestTrigger() || compressionCycleActive) {
+                activation.shieldSoldiers << soldierIndex;
+            }
+        }
+
         if (pad.consumeLaunch()) {
             launchFromPad(index);
         }
@@ -1387,6 +1485,28 @@ void World::launchFromPad(int padIndex)
             ? charger.velocity().x()
             : static_cast<float>(pad.horizontalImpulse());
         charger.launch(QVector2D(
+            launchX,
+            static_cast<float>(-pad.strength())));
+        launched = true;
+    }
+
+    for (const int soldierIndex : activation.shieldSoldiers) {
+        if (soldierIndex < 0 || soldierIndex >= shieldSoldiers_.size()) {
+            continue;
+        }
+        ShieldSoldier &soldier = shieldSoldiers_[soldierIndex];
+        if (!soldier.alive()) {
+            continue;
+        }
+        const QRectF expandedTrigger =
+            pad.triggerZone().adjusted(-12.0, -18.0, 12.0, 12.0);
+        if (!soldier.rect().intersects(expandedTrigger)) {
+            continue;
+        }
+        const float launchX = qFuzzyIsNull(pad.horizontalImpulse())
+            ? soldier.velocity().x()
+            : static_cast<float>(pad.horizontalImpulse());
+        soldier.launch(QVector2D(
             launchX,
             static_cast<float>(-pad.strength())));
         launched = true;
@@ -1855,6 +1975,17 @@ void World::applyExplosion(const ExplosionEvent &event)
             player_.addScore(charger.reward());
         }
     }
+    for (ShieldSoldier &soldier : shieldSoldiers_) {
+        if (!soldier.alive() || !inside(soldier.rect().center())) {
+            continue;
+        }
+
+        const bool wasAlive = soldier.alive();
+        soldier.applyExplosion(event.center, event.damage);
+        if (wasAlive && !soldier.alive()) {
+            player_.addScore(soldier.reward());
+        }
+    }
 
     bool collisionChanged = false;
 
@@ -2282,6 +2413,9 @@ void World::draw(QPainter &painter, double cameraX) const
     for (const Charger &charger : chargers_) {
         charger.draw(painter, cameraX, animationTime_);
     }
+    for (const ShieldSoldier &soldier : shieldSoldiers_) {
+        soldier.draw(painter, cameraX, animationTime_);
+    }
 
     for (const auto &enemy : enemies_) {
         enemy.draw(painter, cameraX);
@@ -2376,10 +2510,17 @@ QString World::enemyDebugText() const
             return charger.debugText();
         }
     }
+    for (const ShieldSoldier &soldier : shieldSoldiers_) {
+        if (soldier.alive()) {
+            return soldier.debugText();
+        }
+    }
 
-    return QString("Enemies: %1  Drones: %2  Turrets: %3  Chargers: %4")
+    return QString(
+        "Enemies: %1  Drones: %2  Turrets: %3  Chargers: %4  Shields: %5")
         .arg(enemies_.size())
         .arg(drones_.size())
         .arg(turrets_.size())
-        .arg(chargers_.size());
+        .arg(chargers_.size())
+        .arg(shieldSoldiers_.size());
 }
