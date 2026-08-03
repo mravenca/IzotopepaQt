@@ -52,6 +52,8 @@ public:
     Projectile shoot();
 
     void damage(double);
+    void setGodMode(bool enabled);
+    bool godMode() const;
     void heal(int);
     void addAmmo(int);
     void addScore(int);
@@ -81,6 +83,7 @@ private:
     bool climbing_ = false;
     bool jumpHeld_ = false;
     bool inWater_ = false;
+    bool godMode_ = false;
 
     int direction_ = 1;
     int health_ = 5;

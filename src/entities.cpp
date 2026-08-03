@@ -326,7 +326,7 @@ Projectile Player::shoot()
 
 void Player::damage(double sourceX)
 {
-    if (invuln_ > 0 || health_ <= 0) {
+    if (godMode_ || invuln_ > 0 || health_ <= 0) {
         return;
     }
 
@@ -336,6 +336,9 @@ void Player::damage(double sourceX)
     vel_.setY(-400);
     vel_.setX(rect_.center().x() < sourceX ? -330 : 330);
 }
+
+void Player::setGodMode(bool enabled) { godMode_ = enabled; }
+bool Player::godMode() const { return godMode_; }
 
 void Player::heal(int amount) { health_ = std::min(5, health_ + amount); }
 void Player::addAmmo(int amount) { ammo_ = std::min(99, ammo_ + amount); }

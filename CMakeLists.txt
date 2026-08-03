@@ -13,6 +13,8 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
 add_executable(IzotopepaQtGameV3
     src/main.cpp
+    src/developeroptions.cpp
+    src/developeroptions.h
     src/gamewidget.cpp
     src/gamewidget.h
     src/world.cpp
