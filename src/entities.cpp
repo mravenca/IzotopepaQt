@@ -351,6 +351,10 @@ int Player::health() const { return health_; }
 int Player::ammo() const { return ammo_; }
 int Player::score() const { return score_; }
 bool Player::dead() const { return health_ <= 0; }
+bool Player::grounded() const { return onGround_; }
+bool Player::climbing() const { return climbing_; }
+bool Player::invulnerable() const { return invuln_ > 0.0; }
+int Player::keyCount() const { return static_cast<int>(keys_.size()); }
 
 void Player::draw(QPainter &painter, double cameraX) const
 {

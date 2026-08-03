@@ -1,6 +1,7 @@
 #pragma once
 
 #include "developeroptions.h"
+#include "developeroverlay.h"
 #include "world.h"
 
 #include <QElapsedTimer>
@@ -55,6 +56,8 @@ private:
     bool up_ = false;
     bool down_ = false;
     bool debugOverlay_ = false;
+    bool compactDebugOverlay_ = false;
+    DeveloperOverlay developerOverlayRenderer_;
     DeveloperOptions developerOptions_;
     QString directLevelFile_;
     QString developerStatus_;

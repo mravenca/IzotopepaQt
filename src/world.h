@@ -98,6 +98,20 @@ struct JumpPadActivation {
     QVector<int> shieldSoldiers;
 };
 
+struct WorldDebugStats {
+    int legacyEnemies = 0;
+    int drones = 0;
+    int turrets = 0;
+    int chargers = 0;
+    int shields = 0;
+    int projectiles = 0;
+    int particles = 0;
+    double cameraShake = 0.0;
+    bool hitStop = false;
+    bool playerOnIce = false;
+    QString selectedEnemy;
+};
+
 class World {
 public:
     World(const SpriteSheet *playerSheet, const SpriteSheet *enemySheet);
@@ -128,6 +142,7 @@ public:
     bool soundEnabled() const;
     QString message() const;
     QString enemyDebugText() const;
+    WorldDebugStats debugStats() const;
     void setGodMode(bool enabled);
     bool godMode() const;
 

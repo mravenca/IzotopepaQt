@@ -15,6 +15,8 @@ add_executable(IzotopepaQtGameV3
     src/main.cpp
     src/developeroptions.cpp
     src/developeroptions.h
+    src/developeroverlay.cpp
+    src/developeroverlay.h
     src/gamewidget.cpp
     src/gamewidget.h
     src/world.cpp

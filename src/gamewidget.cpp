@@ -328,27 +328,54 @@ void GameWidget::drawHud(QPainter &p)
 }
 void GameWidget::drawDebugOverlay(QPainter &p)
 {
-    p.save();
-    p.setPen(Qt::NoPen);
-    p.setBrush(QColor(0, 0, 0, 190));
-    p.drawRoundedRect(QRectF(W - 360, 12, 348, 238), 6, 6);
-    p.setPen(QColor(120, 255, 140));
-    p.setFont(QFont("Monospace", 10));
+    const WorldDebugStats worldStats = world_.debugStats();
+    const Player &player = world_.player();
 
-    const QString text = QString(
-        "FPS: %1\nCamera X: %2  Look: %3\nPlayer: %4, %5\n%6\nF3: hide debug")
-        .arg(fps_, 0, 'f', 1)
-        .arg(camera_.x(), 0, 'f', 1)
-        .arg(camera_.lookAhead(), 0, 'f', 1)
-        .arg(world_.player().rect().x(), 0, 'f', 1)
-        .arg(world_.player().rect().y(), 0, 'f', 1)
-        .arg(world_.enemyDebugText());
+    DeveloperOverlayData data;
+    data.fps = fps_;
+    data.frameTimeMs = fps_ > 0.0 ? 1000.0 / fps_ : 0.0;
+    data.levelNumber = directLevelFile_.isEmpty()
+        ? world_.levelIndex() + 1
+        : 0;
+    data.levelName = world_.levelName();
+    data.levelSource = directLevelFile_.isEmpty()
+        ? "Campaign"
+        : QFileInfo(directLevelFile_).absoluteFilePath();
+    data.developerMode = developerOptions_.developerMode();
+    data.godMode = world_.godMode();
 
-    p.drawText(
-        QRectF(W - 348, 20, 326, 218),
-        Qt::AlignLeft | Qt::AlignTop,
-        text);
-    p.restore();
+    data.playerPosition = player.position();
+    data.playerVelocity = player.velocity();
+    data.grounded = player.grounded();
+    data.climbing = player.climbing();
+    data.swimming = player.inWater();
+    data.onIce = worldStats.playerOnIce;
+    data.invulnerable = player.invulnerable();
+    data.health = player.health();
+    data.ammo = player.ammo();
+    data.score = player.score();
+    data.keys = player.keyCount();
+
+    data.enemies.legacy = worldStats.legacyEnemies;
+    data.enemies.drones = worldStats.drones;
+    data.enemies.turrets = worldStats.turrets;
+    data.enemies.chargers = worldStats.chargers;
+    data.enemies.shields = worldStats.shields;
+    data.projectiles = worldStats.projectiles;
+    data.particles = worldStats.particles;
+
+    data.cameraX = camera_.x();
+    data.cameraLookAhead = camera_.lookAhead();
+    data.cameraShake = worldStats.cameraShake;
+    data.hitStop = worldStats.hitStop;
+    data.selectedEnemy = worldStats.selectedEnemy;
+
+    developerOverlayRenderer_.draw(
+        p,
+        data,
+        W,
+        H,
+        compactDebugOverlay_);
 }
 void GameWidget::drawMenu(QPainter&p,const QString&t,const QStringList&items){p.fillRect(rect(),QColor(0,0,0,150));p.setPen(QColor(255,220,45));p.setFont(QFont("Arial",32,QFont::Bold));p.drawText(QRectF(70,70,W-140,70),Qt::AlignCenter,t);p.setFont(QFont("Arial",17));for(int i=0;i<items.size();++i){QRectF r(180,175+i*55,600,42);if(i==menuIndex_){p.setBrush(QColor(255,220,45,190));p.setPen(Qt::NoPen);p.drawRoundedRect(r,6,6);p.setPen(Qt::black);}else p.setPen(Qt::white);p.drawText(r,Qt::AlignCenter,items[i]);}}
 void GameWidget::keyPressEvent(QKeyEvent *event)
@@ -362,7 +389,12 @@ void GameWidget::keyPressEvent(QKeyEvent *event)
     const bool control = modifiers.testFlag(Qt::ControlModifier);
 
     if (key == Qt::Key_F3) {
-        debugOverlay_ = !debugOverlay_;
+        if (modifiers.testFlag(Qt::ShiftModifier)) {
+            debugOverlay_ = true;
+            compactDebugOverlay_ = !compactDebugOverlay_;
+        } else {
+            debugOverlay_ = !debugOverlay_;
+        }
         update();
         return;
     }

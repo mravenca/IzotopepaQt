@@ -2691,3 +2691,59 @@ QString World::enemyDebugText() const
         .arg(shakeStrength_, 0, 'f', 1)
         .arg(hitStop_ > 0.0 ? "ON" : "off");
 }
+
+WorldDebugStats World::debugStats() const
+{
+    WorldDebugStats stats;
+
+    for (const Enemy &enemy : enemies_) {
+        stats.legacyEnemies += enemy.alive() ? 1 : 0;
+    }
+    for (const Drone &drone : drones_) {
+        stats.drones += drone.alive() ? 1 : 0;
+    }
+    for (const Turret &turret : turrets_) {
+        stats.turrets += turret.alive() ? 1 : 0;
+    }
+    for (const Charger &charger : chargers_) {
+        stats.chargers += charger.alive() ? 1 : 0;
+    }
+    for (const ShieldSoldier &soldier : shieldSoldiers_) {
+        stats.shields += soldier.alive() ? 1 : 0;
+    }
+
+    stats.projectiles = projectiles_.size();
+    stats.particles = particles_.size();
+    stats.cameraShake = shakeStrength_;
+    stats.hitStop = hitStop_ > 0.0;
+    stats.playerOnIce = iceFrictionBelow(player_.rect()) < 0.5;
+
+    stats.selectedEnemy = "No framework enemy alive";
+
+    for (const Drone &drone : drones_) {
+        if (drone.alive()) {
+            stats.selectedEnemy = drone.debugText();
+            return stats;
+        }
+    }
+    for (const Turret &turret : turrets_) {
+        if (turret.alive()) {
+            stats.selectedEnemy = turret.debugText();
+            return stats;
+        }
+    }
+    for (const Charger &charger : chargers_) {
+        if (charger.alive()) {
+            stats.selectedEnemy = charger.debugText();
+            return stats;
+        }
+    }
+    for (const ShieldSoldier &soldier : shieldSoldiers_) {
+        if (soldier.alive()) {
+            stats.selectedEnemy = soldier.debugText();
+            return stats;
+        }
+    }
+
+    return stats;
+}

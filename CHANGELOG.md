@@ -1,3 +1,11 @@
+
+## Developer Tools DT3 — Debug Overlay 2.0
+
+### Added
+- Structured F3 developer HUD with session, performance, player, enemy, combat, and camera diagnostics.
+- Shift+F3 compact debug layout.
+- Player movement-state and collected-key diagnostics.
+- Shared world debug statistics for enemy and effect counts.
 ## Developer Tools 1.0 — DT2 Runtime Shortcuts
 
 ### Added

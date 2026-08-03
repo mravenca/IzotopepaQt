@@ -66,6 +66,10 @@ public:
     int ammo() const;
     int score() const;
     bool dead() const;
+    bool grounded() const;
+    bool climbing() const;
+    bool invulnerable() const;
+    int keyCount() const;
 
     void draw(QPainter &, double) const;
 
