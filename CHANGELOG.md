@@ -106,6 +106,11 @@
 ## Unreleased
 
 ### Added
+- DT4 isolated developer sessions with save protection.
+- Developer Mode window title, watermark, and F3 save-status diagnostics.
+
+
+### Added
 - M1 Spring Awakening: animated JSON-configurable jump pads.
 - Jump-pad launching for the player and pushable boxes.
 - Jump-pad documentation and regression checklist.

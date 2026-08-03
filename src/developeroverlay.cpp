@@ -162,6 +162,10 @@ void DeveloperOverlay::draw(
         yesNo(data.developerMode),
         data.developerMode ? QColor(255, 220, 70) : Qt::white);
     value(
+        "Saving",
+        data.progressSaving ? "enabled" : "DISABLED",
+        data.progressSaving ? Qt::white : QColor(255, 220, 70));
+    value(
         "God mode",
         yesNo(data.godMode),
         data.godMode ? QColor(255, 220, 70) : Qt::white);

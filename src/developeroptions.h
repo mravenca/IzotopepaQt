@@ -16,7 +16,10 @@ struct DeveloperOptions
 
     bool developerMode() const
     {
-        return hasDirectLevel() || debugOverlay || godMode;
+        // Debug overlay alone is also useful during ordinary campaign play.
+        // Direct level selection and God Mode create an isolated developer
+        // session that must never write campaign progress.
+        return hasDirectLevel() || godMode;
     }
 };
 

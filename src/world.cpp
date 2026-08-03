@@ -986,10 +986,14 @@ void World::update(double dt)
     if (player_.rect().intersects(level_.goal())) {
         completed_ = true;
         message_ = "Level complete!";
-        QSettings settings("OpenAI", "Izotopepa");
-        settings.setValue("unlockedLevel",
-                          std::max(settings.value("unlockedLevel", 0).toInt(),
-                                   levelIndex_ + 1));
+        if (!developerSession_) {
+            QSettings settings("OpenAI", "Izotopepa");
+            settings.setValue(
+                "unlockedLevel",
+                std::max(
+                    settings.value("unlockedLevel", 0).toInt(),
+                    levelIndex_ + 1));
+        }
         beep();
     }
 
@@ -2611,6 +2615,16 @@ void World::setGodMode(bool enabled)
 bool World::godMode() const
 {
     return player_.godMode();
+}
+
+void World::setDeveloperSession(bool enabled)
+{
+    developerSession_ = enabled;
+}
+
+bool World::developerSession() const
+{
+    return developerSession_;
 }
 
 void World::toggleSound() { sound_ = !sound_; }

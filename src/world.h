@@ -145,6 +145,8 @@ public:
     WorldDebugStats debugStats() const;
     void setGodMode(bool enabled);
     bool godMode() const;
+    void setDeveloperSession(bool enabled);
+    bool developerSession() const;
 
 private:
     bool initializeLoadedLevel();
@@ -230,6 +232,7 @@ private:
     bool inputLeft_ = false;
     bool inputRight_ = false;
     bool inputDown_ = false;
+    bool developerSession_ = false;
 
     QString message_;
     double messageTime_ = 0;

@@ -24,6 +24,7 @@ GameWidget::GameWidget(const DeveloperOptions &options, QWidget *parent)
         9);
 
     debugOverlay_ = developerOptions_.debugOverlay;
+    world_.setDeveloperSession(developerOptions_.developerMode());
     world_.setGodMode(developerOptions_.godMode);
 
     timer_.setInterval(16);
@@ -47,6 +48,7 @@ void GameWidget::startLevel(int level)
         return;
     }
 
+    world_.setDeveloperSession(developerOptions_.developerMode());
     world_.setGodMode(developerOptions_.godMode);
     camera_.configure(W, world_.width());
     camera_.reset();
@@ -63,6 +65,7 @@ void GameWidget::startLevelFile(const QString &fileName)
     }
 
     directLevelFile_ = fileName;
+    world_.setDeveloperSession(developerOptions_.developerMode());
     world_.setGodMode(developerOptions_.godMode);
     camera_.configure(W, world_.width());
     camera_.reset();
@@ -127,6 +130,7 @@ void GameWidget::restartCurrentLevel()
         return;
     }
 
+    world_.setDeveloperSession(developerOptions_.developerMode());
     world_.setGodMode(developerOptions_.godMode);
     camera_.configure(W, world_.width());
     camera_.reset();
@@ -164,14 +168,16 @@ void GameWidget::updateWindowTitle()
 {
     QString title = "Izotopepa Complete Edition";
 
-    if (!directLevelFile_.isEmpty()) {
-        title += QString(" — %1").arg(QFileInfo(directLevelFile_).fileName());
-    } else if (mode_ == Mode::Playing && world_.levelIndex() >= 0) {
-        title += QString(" — Level %1").arg(world_.levelIndex() + 1);
-    }
-
     if (developerOptions_.developerMode()) {
         title += " — Developer Mode";
+    }
+
+    if (!directLevelFile_.isEmpty()) {
+        title += QString(" — %1")
+            .arg(QFileInfo(directLevelFile_).fileName());
+    } else if (mode_ == Mode::Playing && world_.levelIndex() >= 0) {
+        title += QString(" — Level %1")
+            .arg(world_.levelIndex() + 1);
     }
 
     setWindowTitle(title);
@@ -213,7 +219,19 @@ void GameWidget::loop()
 
     update();
 }
-void GameWidget::updateMode(){if(world_.gameOver())mode_=Mode::GameOver;else if(world_.completed()){unlocked_=std::max(unlocked_,std::min(9,world_.levelIndex()+1));mode_=Mode::Complete;}}
+void GameWidget::updateMode()
+{
+    if (world_.gameOver()) {
+        mode_ = Mode::GameOver;
+    } else if (world_.completed()) {
+        if (!developerOptions_.developerMode()) {
+            unlocked_ = std::max(
+                unlocked_,
+                std::min(9, world_.levelIndex() + 1));
+        }
+        mode_ = Mode::Complete;
+    }
+}
 void GameWidget::paintEvent(QPaintEvent*){QPainter p(this);p.setRenderHint(QPainter::Antialiasing,false);drawBackground(p);if(mode_!=Mode::Menu&&mode_!=Mode::Help&&mode_!=Mode::Settings){drawPlatforms(p);world_.draw(p,camera_.x());drawHud(p);}if(mode_==Mode::Menu)drawMenu(p,"IZOTOPEPA: COMPLETE EDITION",{"New game","Select level","Help","Settings","Quit"});else if(mode_==Mode::Paused)drawMenu(p,"PAUSED",{"Resume","Restart level","Main menu"});else if(mode_==Mode::Help)drawMenu(p,"CONTROLS",{"A/D or arrows: move","Space/W/Up: jump or climb","S/Down: climb down","F/Ctrl: shoot","E: activate switch","P/Esc: pause","Backspace: return"});else if(mode_==Mode::Settings)drawMenu(p,"SETTINGS",{QString("Sound: %1").arg(world_.soundEnabled()?"On":"Off"),"Reset saved progress","Back"});else if(mode_==Mode::GameOver)drawMenu(p,"GAME OVER",{"Restart from checkpoint","Restart level","Main menu"});else if(mode_==Mode::Complete)drawMenu(p,"LEVEL COMPLETE",{world_.levelIndex()<9?"Next level":"Play campaign again","Main menu"});}
 void GameWidget::drawBackground(QPainter &p)
 {
@@ -325,6 +343,28 @@ void GameWidget::drawHud(QPainter &p)
     if (debugOverlay_) {
         drawDebugOverlay(p);
     }
+
+    if (developerOptions_.developerMode()) {
+        const QRectF badge(W - 230, H - 66, 218, 52);
+        p.setPen(QPen(QColor(255, 210, 70, 210), 1));
+        p.setBrush(QColor(25, 18, 5, 205));
+        p.drawRoundedRect(badge, 7, 7);
+        p.setFont(QFont("Arial", 10, QFont::Bold));
+        p.setPen(QColor(255, 220, 85));
+        p.drawText(
+            badge.adjusted(10, 5, -10, -25),
+            Qt::AlignCenter,
+            "DEVELOPER MODE");
+        p.setFont(QFont("Arial", 9));
+        p.setPen(developerOptions_.godMode
+            ? QColor(255, 220, 85)
+            : QColor(205, 210, 215));
+        p.drawText(
+            badge.adjusted(10, 25, -10, -4),
+            Qt::AlignCenter,
+            QString("God Mode: %1")
+                .arg(developerOptions_.godMode ? "ON" : "OFF"));
+    }
 }
 void GameWidget::drawDebugOverlay(QPainter &p)
 {
@@ -342,6 +382,7 @@ void GameWidget::drawDebugOverlay(QPainter &p)
         ? "Campaign"
         : QFileInfo(directLevelFile_).absoluteFilePath();
     data.developerMode = developerOptions_.developerMode();
+    data.progressSaving = !developerOptions_.developerMode();
     data.godMode = world_.godMode();
 
     data.playerPosition = player.position();

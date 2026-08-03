@@ -29,6 +29,7 @@ struct DeveloperOverlayData
     QString levelName;
     QString levelSource;
     bool developerMode = false;
+    bool progressSaving = true;
     bool godMode = false;
 
     QPointF playerPosition;
