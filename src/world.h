@@ -103,6 +103,8 @@ public:
     World(const SpriteSheet *playerSheet, const SpriteSheet *enemySheet);
 
     bool loadLevel(int index);
+    bool loadLevelFile(const QString &fileName);
+    bool restartLevel();
     void resetFromCheckpoint();
     void update(double dt);
     void draw(QPainter &painter, double cameraX) const;
@@ -126,8 +128,11 @@ public:
     bool soundEnabled() const;
     QString message() const;
     QString enemyDebugText() const;
+    void setGodMode(bool enabled);
+    bool godMode() const;
 
 private:
+    bool initializeLoadedLevel();
     void rebuildCollision();
     void explode(QPointF position, QColor color);
     void combatImpact(

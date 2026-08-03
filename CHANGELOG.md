@@ -1,3 +1,21 @@
+## Developer Tools 1.0 — DT2 Runtime Shortcuts
+
+### Added
+- F5 reloads the current level from disk.
+- F6 reloads an external `--level-file` session.
+- Ctrl+R restarts runtime state without reparsing JSON.
+- Ctrl+PageUp and Ctrl+PageDown switch campaign levels.
+- Short on-screen status confirmations for developer actions.
+
+## Developer Tools 1.0 — DT1
+
+### Added
+- `--level 1-10` for direct campaign-level startup.
+- `--level-file <path>` for loading an external JSON level.
+- `--debug` for enabling the F3 overlay at startup.
+- `--god` for disabling player damage.
+- Clear developer-mode window titles.
+
 ## M8.5 - Combat Polish
 
 ### Added

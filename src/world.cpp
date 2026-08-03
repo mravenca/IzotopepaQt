@@ -120,6 +120,26 @@ bool World::loadLevel(int index)
         return false;
     }
 
+    return initializeLoadedLevel();
+}
+
+bool World::loadLevelFile(const QString &fileName)
+{
+    levelIndex_ = -1;
+    if (!level_.load(fileName)) {
+        return false;
+    }
+
+    return initializeLoadedLevel();
+}
+
+bool World::restartLevel()
+{
+    return initializeLoadedLevel();
+}
+
+bool World::initializeLoadedLevel()
+{
     player_.reset(level_.playerSpawn(), true);
     respawn_ = level_.playerSpawn();
 
@@ -2582,6 +2602,17 @@ QString World::levelName() const { return level_.name(); }
 int World::levelIndex() const { return levelIndex_; }
 bool World::completed() const { return completed_; }
 bool World::gameOver() const { return gameOver_; }
+
+void World::setGodMode(bool enabled)
+{
+    player_.setGodMode(enabled);
+}
+
+bool World::godMode() const
+{
+    return player_.godMode();
+}
+
 void World::toggleSound() { sound_ = !sound_; }
 bool World::soundEnabled() const { return sound_; }
 QString World::message() const { return message_; }
