@@ -1,3 +1,10 @@
+## M8.3 - Charger
+
+### Added
+- Charger enemy with warning, charge, stun and recovery states.
+- Interactions with boxes, crates, barrels, jump pads, conveyors, water, ice and falling platforms.
+- Charger JSON configuration, diagnostics and campaign placements.
+
 ## M8.2 - Turret and Enemy Factory
 
 - Added floor- and ceiling-mounted turrets with directional vision cones.

@@ -176,6 +176,15 @@ bool Level::load(const QString &requestedPath)
         spawn.projectileSpeed = std::max(
             80.0,
             object.value("projectileSpeed").toDouble(420.0));
+        spawn.warningTime = std::max(
+            0.1,
+            object.value("warning").toDouble(0.6));
+        spawn.stunTime = std::max(
+            0.2,
+            object.value("stun").toDouble(2.5));
+        spawn.contactDamage = std::max(
+            1,
+            object.value("damage").toInt(1));
 
         for (const QJsonValue &patrolValue : object.value("patrol").toArray()) {
             spawn.patrol << pointFromArray(patrolValue);

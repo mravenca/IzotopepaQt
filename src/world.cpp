@@ -126,12 +126,15 @@ bool World::loadLevel(int index)
     enemies_.clear();
     drones_.clear();
     turrets_.clear();
+    chargers_.clear();
 
     for (const auto &spawn : level_.enemies()) {
         if (EnemyFactory::isDrone(spawn)) {
             drones_ << EnemyFactory::createDrone(spawn);
         } else if (EnemyFactory::isTurret(spawn)) {
             turrets_ << EnemyFactory::createTurret(spawn);
+        } else if (EnemyFactory::isCharger(spawn)) {
+            chargers_ << EnemyFactory::createCharger(spawn);
         } else {
             enemies_ << Enemy(
                 enemySheet_,
@@ -489,6 +492,80 @@ void World::update(double dt)
             projectiles_);
     }
 
+    for (Charger &charger : chargers_) {
+        const WaterZone *chargerWater = waterZoneFor(charger.rect());
+        QVector<QRectF> chargerSolids = collision_;
+        for (const PushBox &box : pushBoxes_) {
+            if (box.alive) {
+                chargerSolids.removeAll(box.rect);
+            }
+        }
+        for (const Crate &crate : crates_) {
+            if (crate.alive) {
+                chargerSolids.removeAll(crate.rect);
+            }
+        }
+        for (const Barrel &barrel : barrels_) {
+            if (barrel.alive) {
+                chargerSolids.removeAll(barrel.rect);
+            }
+        }
+
+        charger.update(
+            dt,
+            player_.rect().center(),
+            chargerSolids,
+            oneWayRects(),
+            chargerWater != nullptr,
+            conveyorSpeedBelow(charger.rect()),
+            iceFrictionBelow(charger.rect()));
+
+        if (!charger.alive()) {
+            continue;
+        }
+
+        if (charger.charging()
+            && charger.rect().intersects(player_.rect())) {
+            player_.damage(charger.rect().center().x());
+            charger.stun();
+            shakeTime_ = std::max(shakeTime_, 0.22);
+            shakeStrength_ = std::max(shakeStrength_, 7.0);
+        }
+
+        if (charger.charging()) {
+            for (PushBox &box : pushBoxes_) {
+                if (box.alive && charger.rect().intersects(box.rect)) {
+                    box.velocity.setX(
+                        static_cast<float>(charger.direction() * 320.0));
+                    box.velocity.setY(-90.0f);
+                    charger.stun();
+                    break;
+                }
+            }
+        }
+
+        if (charger.charging()) {
+            for (Crate &crate : crates_) {
+                if (crate.alive && charger.rect().intersects(crate.rect)) {
+                    destroyCrate(crate);
+                    charger.stun();
+                    rebuildCollision();
+                    break;
+                }
+            }
+        }
+
+        if (charger.charging()) {
+            for (Barrel &barrel : barrels_) {
+                if (barrel.alive && charger.rect().intersects(barrel.rect)) {
+                    barrel.fuse = 0.01;
+                    charger.stun();
+                    break;
+                }
+            }
+        }
+    }
+
     for (int first = 0; first < enemies_.size(); ++first) {
         if (!enemies_[first].alive()) {
             continue;
@@ -742,6 +819,33 @@ void World::update(double dt)
                 continue;
             }
 
+            bool hitCharger = false;
+            for (Charger &charger : chargers_) {
+                if (charger.alive()
+                    && projectile.rect.intersects(charger.rect())) {
+                    charger.damage(1, projectile.rect.center());
+                    projectile.alive = false;
+                    hitCharger = true;
+                    explode(projectile.rect.center(), Qt::yellow);
+                    shakeTime_ = std::max(shakeTime_, 0.10);
+                    shakeStrength_ = std::max(shakeStrength_, 3.0);
+
+                    if (!charger.alive()) {
+                        player_.addScore(charger.reward());
+                        explode(charger.rect().center(), QColor(255, 95, 40));
+                        explode(charger.rect().center() + QPointF(8, -8), Qt::yellow);
+                        shakeTime_ = std::max(shakeTime_, 0.30);
+                        shakeStrength_ = std::max(shakeStrength_, 8.0);
+                        beep();
+                    }
+                    break;
+                }
+            }
+
+            if (hitCharger) {
+                continue;
+            }
+
             for (auto &enemy : enemies_) {
                 if (enemy.alive() && projectile.rect.intersects(enemy.rect())) {
                     enemy.damage(1, projectile.rect.center().x());
@@ -881,6 +985,12 @@ bool World::fallingPlatformRespawnClear(const QRectF &rect) const
         }
     }
 
+    for (const Charger &charger : chargers_) {
+        if (charger.alive() && charger.rect().intersects(safetyArea)) {
+            return false;
+        }
+    }
+
     for (const Crate &crate : crates_) {
         if (crate.alive && crate.rect.intersects(safetyArea)) {
             return false;
@@ -923,6 +1033,17 @@ void World::updateFallingPlatforms(double dt)
                     if (enemy.alive()
                         && standingOnFallingPlatform(
                             enemy.rect(), platform.rect())) {
+                        occupied = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!occupied) {
+                for (const Charger &charger : chargers_) {
+                    if (charger.alive()
+                        && standingOnFallingPlatform(
+                            charger.rect(), platform.rect())) {
                         occupied = true;
                         break;
                     }
@@ -1166,6 +1287,32 @@ void World::updateJumpPads(double dt)
             }
         }
 
+        for (int chargerIndex = 0; chargerIndex < chargers_.size(); ++chargerIndex) {
+            Charger &charger = chargers_[chargerIndex];
+            if (!charger.alive()
+                || activation.chargers.contains(chargerIndex)
+                || charger.velocity().y() < -10.0f) {
+                continue;
+            }
+
+            const QRectF feet(
+                charger.rect().left() + 5.0,
+                charger.rect().bottom() - 5.0,
+                charger.rect().width() - 10.0,
+                10.0);
+            if (!feet.intersects(trigger)) {
+                continue;
+            }
+
+            const bool compressionCycleActive =
+                activation.player
+                || !activation.pushBoxes.isEmpty()
+                || !activation.chargers.isEmpty();
+            if (pad.requestTrigger() || compressionCycleActive) {
+                activation.chargers << chargerIndex;
+            }
+        }
+
         if (pad.consumeLaunch()) {
             launchFromPad(index);
         }
@@ -1220,6 +1367,28 @@ void World::launchFromPad(int padIndex)
         box.velocity = QVector2D(
             launchX,
             static_cast<float>(-pad.strength()));
+        launched = true;
+    }
+
+    for (const int chargerIndex : activation.chargers) {
+        if (chargerIndex < 0 || chargerIndex >= chargers_.size()) {
+            continue;
+        }
+        Charger &charger = chargers_[chargerIndex];
+        if (!charger.alive()) {
+            continue;
+        }
+        const QRectF expandedTrigger =
+            pad.triggerZone().adjusted(-12.0, -18.0, 12.0, 12.0);
+        if (!charger.rect().intersects(expandedTrigger)) {
+            continue;
+        }
+        const float launchX = qFuzzyIsNull(pad.horizontalImpulse())
+            ? charger.velocity().x()
+            : static_cast<float>(pad.horizontalImpulse());
+        charger.launch(QVector2D(
+            launchX,
+            static_cast<float>(-pad.strength())));
         launched = true;
     }
 
@@ -1675,6 +1844,18 @@ void World::applyExplosion(const ExplosionEvent &event)
         }
     }
 
+    for (Charger &charger : chargers_) {
+        if (!charger.alive() || !inside(charger.rect().center())) {
+            continue;
+        }
+
+        const bool wasAlive = charger.alive();
+        charger.applyExplosion(event.center, event.damage);
+        if (wasAlive && !charger.alive()) {
+            player_.addScore(charger.reward());
+        }
+    }
+
     bool collisionChanged = false;
 
     for (auto &crate : crates_) {
@@ -2098,6 +2279,10 @@ void World::draw(QPainter &painter, double cameraX) const
         turret.draw(painter, cameraX, animationTime_);
     }
 
+    for (const Charger &charger : chargers_) {
+        charger.draw(painter, cameraX, animationTime_);
+    }
+
     for (const auto &enemy : enemies_) {
         enemy.draw(painter, cameraX);
     }
@@ -2186,8 +2371,15 @@ QString World::enemyDebugText() const
         }
     }
 
-    return QString("Enemies: %1  Drones: %2  Turrets: %3")
+    for (const Charger &charger : chargers_) {
+        if (charger.alive()) {
+            return charger.debugText();
+        }
+    }
+
+    return QString("Enemies: %1  Drones: %2  Turrets: %3  Chargers: %4")
         .arg(enemies_.size())
         .arg(drones_.size())
-        .arg(turrets_.size());
+        .arg(turrets_.size())
+        .arg(chargers_.size());
 }

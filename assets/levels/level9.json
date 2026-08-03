@@ -153,6 +153,19 @@
       "burst": 3,
       "reload": 2.0,
       "projectileSpeed": 420
+    },
+    {
+      "kind": "charger",
+      "x": 2480,
+      "y": 500,
+      "left": 2320,
+      "right": 2900,
+      "vision": 540,
+      "warning": 0.55,
+      "speed": 560,
+      "stun": 2.5,
+      "health": 6,
+      "damage": 1
     }
   ],
   "coins": [

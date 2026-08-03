@@ -76,6 +76,19 @@
       "y": 500,
       "left": 2240,
       "right": 2700
+    },
+    {
+      "kind": "charger",
+      "x": 1680,
+      "y": 500,
+      "left": 1500,
+      "right": 2050,
+      "vision": 480,
+      "warning": 0.65,
+      "speed": 500,
+      "stun": 2.3,
+      "health": 5,
+      "damage": 1
     }
   ],
   "coins": [

@@ -22,6 +22,9 @@ struct EnemySpawn {
     double visionAngle = 100.0;
     double rotationSpeed = 180.0;
     double projectileSpeed = 420.0;
+    double warningTime = 0.6;
+    double stunTime = 2.5;
+    int contactDamage = 1;
 };
 
 struct MovingSpawn {

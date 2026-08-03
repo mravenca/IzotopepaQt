@@ -3,6 +3,7 @@
 #include "entities.h"
 #include "drone.h"
 #include "turret.h"
+#include "charger.h"
 #include "enemyfactory.h"
 #include "level.h"
 #include "jumppad.h"
@@ -91,6 +92,7 @@ struct ExplosionEvent {
 struct JumpPadActivation {
     bool player = false;
     QVector<int> pushBoxes;
+    QVector<int> chargers;
 };
 
 class World {
@@ -157,6 +159,7 @@ private:
     QVector<Enemy> enemies_;
     QVector<Drone> drones_;
     QVector<Turret> turrets_;
+    QVector<Charger> chargers_;
     QVector<MovingPlatform> moving_;
     QVector<Coin> coins_;
     QVector<Pickup> pickups_;

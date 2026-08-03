@@ -25,6 +25,8 @@ add_executable(IzotopepaQtGameV3
     src/drone.h
     src/turret.cpp
     src/turret.h
+    src/charger.cpp
+    src/charger.h
     src/enemyfactory.cpp
     src/enemyfactory.h
     src/level.cpp
