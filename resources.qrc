@@ -14,4 +14,5 @@
  <file alias="levels/level8.json">assets/levels/level8.json</file>
  <file alias="levels/level9.json">assets/levels/level9.json</file>
  <file alias="levels/level10.json">assets/levels/level10.json</file>
+ <file alias="ui/crazy_lab_logo.png">assets/ui/crazy_lab_logo.png</file>
 </qresource></RCC>

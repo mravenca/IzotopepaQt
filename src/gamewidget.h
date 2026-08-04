@@ -7,6 +7,9 @@
 #include <QElapsedTimer>
 #include <QTimer>
 #include <QWidget>
+#include <QPixmap>
+
+class QMouseEvent;
 
 class GameWidget : public QWidget
 {
@@ -19,9 +22,10 @@ protected:
     void paintEvent(QPaintEvent *) override;
     void keyPressEvent(QKeyEvent *) override;
     void keyReleaseEvent(QKeyEvent *) override;
+    void mousePressEvent(QMouseEvent *) override;
 
 private:
-    enum class Mode { Menu, Playing, Paused, Help, Settings, GameOver, Complete };
+    enum class Mode { Splash, Menu, Playing, Paused, Help, Settings, GameOver, Complete };
 
     void loop();
     void startLevel(int level);
@@ -33,6 +37,8 @@ private:
     void showDeveloperStatus(const QString &text);
     void updateWindowTitle();
     void updateMode();
+    void drawSplash(QPainter &painter);
+    void finishSplash();
     void drawBackground(QPainter &painter);
     void drawPlatforms(QPainter &painter);
     void drawHud(QPainter &painter);
@@ -49,7 +55,7 @@ private:
     SpriteSheet enemySheet_;
     World world_;
     Camera camera_;
-    Mode mode_ = Mode::Menu;
+    Mode mode_ = Mode::Splash;
 
     bool left_ = false;
     bool right_ = false;
@@ -67,4 +73,6 @@ private:
     int unlocked_ = 0;
     double fps_ = 0.0;
     double sceneTime_ = 0.0;
+    double splashTime_ = 0.0;
+    QPixmap crazyLabLogo_;
 };
