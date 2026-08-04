@@ -2,6 +2,7 @@
 #include "support.h"
 #include <QFileInfo>
 #include <QKeyEvent>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QRadialGradient>
 #include <QSettings>
@@ -12,7 +13,8 @@ GameWidget::GameWidget(const DeveloperOptions &options, QWidget *parent)
       playerSheet_(loadTransparentImage(":/sprites/izotop.bmp"), 96, 128),
       enemySheet_(loadTransparentImage(":/sprites/potvory.bmp"), 64, 96),
       world_(&playerSheet_, &enemySheet_),
-      developerOptions_(options)
+      developerOptions_(options),
+      crazyLabLogo_(":/ui/crazy_lab_logo.png")
 {
     setFixedSize(W, H);
     setFocusPolicy(Qt::StrongFocus);
@@ -36,6 +38,8 @@ GameWidget::GameWidget(const DeveloperOptions &options, QWidget *parent)
         startLevelFile(developerOptions_.levelFile);
     } else if (developerOptions_.level >= 0) {
         startLevel(developerOptions_.level);
+    } else {
+        mode_ = Mode::Splash;
     }
 
     updateWindowTitle();
@@ -202,6 +206,13 @@ void GameWidget::loop()
             : fps_ * 0.9 + instantFps * 0.1;
     }
 
+    if (mode_ == Mode::Splash) {
+        splashTime_ += dt;
+        if (splashTime_ >= 3.2) {
+            finishSplash();
+        }
+    }
+
     if (mode_ == Mode::Playing) {
         world_.setInput(left_, right_, up_, down_);
         world_.update(dt);
@@ -232,7 +243,132 @@ void GameWidget::updateMode()
         mode_ = Mode::Complete;
     }
 }
-void GameWidget::paintEvent(QPaintEvent*){QPainter p(this);p.setRenderHint(QPainter::Antialiasing,false);drawBackground(p);if(mode_!=Mode::Menu&&mode_!=Mode::Help&&mode_!=Mode::Settings){drawPlatforms(p);world_.draw(p,camera_.x());drawHud(p);}if(mode_==Mode::Menu)drawMenu(p,"IZOTOPEPA: COMPLETE EDITION",{"New game","Select level","Help","Settings","Quit"});else if(mode_==Mode::Paused)drawMenu(p,"PAUSED",{"Resume","Restart level","Main menu"});else if(mode_==Mode::Help)drawMenu(p,"CONTROLS",{"A/D or arrows: move","Space/W/Up: jump or climb","S/Down: climb down","F/Ctrl: shoot","E: activate switch","P/Esc: pause","Backspace: return"});else if(mode_==Mode::Settings)drawMenu(p,"SETTINGS",{QString("Sound: %1").arg(world_.soundEnabled()?"On":"Off"),"Reset saved progress","Back"});else if(mode_==Mode::GameOver)drawMenu(p,"GAME OVER",{"Restart from checkpoint","Restart level","Main menu"});else if(mode_==Mode::Complete)drawMenu(p,"LEVEL COMPLETE",{world_.levelIndex()<9?"Next level":"Play campaign again","Main menu"});}
+void GameWidget::paintEvent(QPaintEvent *)
+{
+    QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing, true);
+    p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+
+    if (mode_ == Mode::Splash) {
+        drawSplash(p);
+        return;
+    }
+
+    drawBackground(p);
+
+    if (mode_ != Mode::Menu
+        && mode_ != Mode::Help
+        && mode_ != Mode::Settings) {
+        drawPlatforms(p);
+        world_.draw(p, camera_.x());
+        drawHud(p);
+    }
+
+    if (mode_ == Mode::Menu) {
+        drawMenu(
+            p,
+            "IZOTOPEPA",
+            {"NEW GAME", "CONTINUE", "CONTROLS", "SETTINGS", "QUIT"});
+    } else if (mode_ == Mode::Paused) {
+        drawMenu(p, "PAUSED", {"RESUME", "RESTART LEVEL", "MAIN MENU"});
+    } else if (mode_ == Mode::Help) {
+        drawMenu(
+            p,
+            "CONTROLS",
+            {"A/D or arrows: move",
+             "Space/W/Up: jump or climb",
+             "S/Down: climb down",
+             "F/Ctrl: shoot",
+             "E: activate switch",
+             "P/Esc: pause",
+             "Backspace: return"});
+    } else if (mode_ == Mode::Settings) {
+        drawMenu(
+            p,
+            "SETTINGS",
+            {QString("Sound: %1").arg(world_.soundEnabled() ? "On" : "Off"),
+             "Reset saved progress",
+             "Back"});
+    } else if (mode_ == Mode::GameOver) {
+        drawMenu(
+            p,
+            "GAME OVER",
+            {"RESTART FROM CHECKPOINT", "RESTART LEVEL", "MAIN MENU"});
+    } else if (mode_ == Mode::Complete) {
+        drawMenu(
+            p,
+            "LEVEL COMPLETE",
+            {world_.levelIndex() < 9 ? "NEXT LEVEL" : "PLAY CAMPAIGN AGAIN",
+             "MAIN MENU"});
+    }
+}
+
+void GameWidget::drawSplash(QPainter &p)
+{
+    p.fillRect(rect(), QColor(7, 8, 10));
+
+    QRadialGradient glow(QPointF(W / 2.0, H / 2.0), 520.0);
+    glow.setColorAt(0.0, QColor(53, 42, 29));
+    glow.setColorAt(0.48, QColor(19, 21, 24));
+    glow.setColorAt(1.0, QColor(3, 4, 5));
+    p.fillRect(rect(), glow);
+
+    double opacity = 1.0;
+    if (splashTime_ < 0.65) {
+        opacity = splashTime_ / 0.65;
+    } else if (splashTime_ > 2.5) {
+        opacity = std::clamp((3.2 - splashTime_) / 0.7, 0.0, 1.0);
+    }
+
+    p.save();
+    p.setOpacity(opacity);
+
+    if (!crazyLabLogo_.isNull()) {
+        const QSize targetSize(390, 390);
+        const QPixmap scaled = crazyLabLogo_.scaled(
+            targetSize,
+            Qt::KeepAspectRatio,
+            Qt::SmoothTransformation);
+        const QPoint topLeft(
+            (W - scaled.width()) / 2,
+            55);
+        p.drawPixmap(topLeft, scaled);
+    }
+
+    p.setRenderHint(QPainter::TextAntialiasing, true);
+    p.setPen(QColor(241, 132, 28));
+    p.setFont(QFont("Arial", 31, QFont::Black));
+    p.drawText(QRectF(0, 450, W, 50), Qt::AlignCenter, "IZOTOPEPA");
+
+    p.setPen(QColor(218, 220, 224));
+    p.setFont(QFont("Arial", 13, QFont::DemiBold));
+    p.drawText(
+        QRectF(0, 498, W, 28),
+        Qt::AlignCenter,
+        "COMPLETE EDITION");
+
+    p.setPen(QColor(205, 208, 212, 220));
+    p.setFont(QFont("Arial", 10));
+    p.drawText(
+        QRectF(0, 570, W, 25),
+        Qt::AlignCenter,
+        "PRESS ANY KEY TO CONTINUE");
+    p.restore();
+}
+
+void GameWidget::finishSplash()
+{
+    if (mode_ != Mode::Splash) {
+        return;
+    }
+
+    mode_ = Mode::Menu;
+    menuIndex_ = 0;
+    splashTime_ = 3.2;
+    updateWindowTitle();
+    update();
+}
+
 void GameWidget::drawBackground(QPainter &p)
 {
     QLinearGradient sky(0, 0, 0, H);
@@ -418,10 +554,122 @@ void GameWidget::drawDebugOverlay(QPainter &p)
         H,
         compactDebugOverlay_);
 }
-void GameWidget::drawMenu(QPainter&p,const QString&t,const QStringList&items){p.fillRect(rect(),QColor(0,0,0,150));p.setPen(QColor(255,220,45));p.setFont(QFont("Arial",32,QFont::Bold));p.drawText(QRectF(70,70,W-140,70),Qt::AlignCenter,t);p.setFont(QFont("Arial",17));for(int i=0;i<items.size();++i){QRectF r(180,175+i*55,600,42);if(i==menuIndex_){p.setBrush(QColor(255,220,45,190));p.setPen(Qt::NoPen);p.drawRoundedRect(r,6,6);p.setPen(Qt::black);}else p.setPen(Qt::white);p.drawText(r,Qt::AlignCenter,items[i]);}}
+void GameWidget::drawMenu(
+    QPainter &p,
+    const QString &title,
+    const QStringList &items)
+{
+    // Original menu layout with a green/black palette matching the game world.
+    QLinearGradient background(0, 0, 0, H);
+    background.setColorAt(0.0, QColor(3, 18, 10));
+    background.setColorAt(0.58, QColor(5, 31, 16));
+    background.setColorAt(1.0, QColor(2, 9, 5));
+    p.fillRect(rect(), background);
+
+    // Soft green atmosphere behind the Crazy Lab watermark.
+    QRadialGradient atmosphere(QPointF(W * 0.77, H * 0.46), W * 0.48);
+    atmosphere.setColorAt(0.0, QColor(34, 116, 45, 72));
+    atmosphere.setColorAt(0.52, QColor(15, 65, 28, 34));
+    atmosphere.setColorAt(1.0, QColor(0, 0, 0, 0));
+    p.fillRect(rect(), atmosphere);
+
+    // Distant factory silhouette.
+    p.setPen(Qt::NoPen);
+    p.setBrush(QColor(1, 9, 5, 235));
+    for (int x = 0; x < W; x += 58) {
+        const int height = 58 + ((x / 58) % 5) * 21;
+        p.drawRect(QRectF(x, H - 95 - height, 42, height));
+        if ((x / 58) % 3 == 0) {
+            p.drawRect(QRectF(x + 12, H - 145 - height, 8, 55));
+        }
+    }
+
+    // Floor and green industrial edge lighting.
+    p.fillRect(QRectF(0, H - 88, W, 88), QColor(2, 8, 4));
+    p.setPen(QPen(QColor(111, 238, 73, 175), 2));
+    p.drawLine(QPointF(0, H - 88), QPointF(W, H - 88));
+    for (int x = 32; x < W; x += 145) {
+        p.drawLine(QPointF(x, H - 87), QPointF(x + 34, H - 87));
+    }
+
+    // Large faded logo watermark.
+    if (!crazyLabLogo_.isNull()) {
+        p.save();
+        p.setOpacity(0.11);
+        const QPixmap watermark = crazyLabLogo_.scaled(
+            QSize(570, 570),
+            Qt::KeepAspectRatio,
+            Qt::SmoothTransformation);
+        p.drawPixmap(
+            QPoint(W - watermark.width() + 80,
+                   (H - watermark.height()) / 2 + 35),
+            watermark);
+        p.restore();
+    }
+
+    p.setRenderHint(QPainter::TextAntialiasing, true);
+    p.setPen(QColor(126, 240, 62));
+    p.setFont(QFont("Arial", 34, QFont::Black));
+    p.drawText(QRectF(72, 62, 540, 52), Qt::AlignLeft | Qt::AlignVCenter, title);
+
+    p.setPen(QColor(224, 236, 225));
+    p.setFont(QFont("Arial", 12, QFont::DemiBold));
+    p.drawText(
+        QRectF(76, 109, 440, 28),
+        Qt::AlignLeft | Qt::AlignVCenter,
+        "COMPLETE EDITION");
+
+    const int count = std::max(1, static_cast<int>(items.size()));
+    menuIndex_ = std::clamp(menuIndex_, 0, count - 1);
+
+    p.setFont(QFont("Arial", 16, QFont::DemiBold));
+    for (int i = 0; i < items.size(); ++i) {
+        const QRectF itemRect(92, 180 + i * 57, 410, 43);
+        const bool selected = i == menuIndex_;
+
+        if (selected) {
+            QLinearGradient selection(itemRect.topLeft(), itemRect.topRight());
+            selection.setColorAt(0.0, QColor(18, 92, 27, 235));
+            selection.setColorAt(1.0, QColor(5, 31, 14, 190));
+            p.setPen(QPen(QColor(128, 255, 70), 2));
+            p.setBrush(selection);
+            p.drawRect(itemRect);
+
+            QPolygonF arrow;
+            arrow << QPointF(itemRect.left() - 20, itemRect.center().y() - 8)
+                  << QPointF(itemRect.left() - 6, itemRect.center().y())
+                  << QPointF(itemRect.left() - 20, itemRect.center().y() + 8);
+            p.setPen(Qt::NoPen);
+            p.setBrush(QColor(151, 255, 76));
+            p.drawPolygon(arrow);
+            p.setPen(QColor(241, 255, 235));
+        } else {
+            p.setPen(QColor(213, 225, 215));
+            p.setBrush(Qt::NoBrush);
+        }
+
+        p.drawText(
+            itemRect.adjusted(25, 0, -10, 0),
+            Qt::AlignLeft | Qt::AlignVCenter,
+            items[i]);
+    }
+
+    p.setPen(QColor(129, 176, 133));
+    p.setFont(QFont("Arial", 9));
+    p.drawText(
+        QRectF(22, H - 34, W - 44, 20),
+        Qt::AlignRight | Qt::AlignVCenter,
+        "© 2026 CRAZY LAB");
+}
+
 void GameWidget::keyPressEvent(QKeyEvent *event)
 {
     if (event->isAutoRepeat()) {
+        return;
+    }
+
+    if (mode_ == Mode::Splash) {
+        finishSplash();
         return;
     }
 
@@ -493,7 +741,17 @@ void GameWidget::keyPressEvent(QKeyEvent *event)
     }
 
     if (key == Qt::Key_Down) {
-        ++menuIndex_;
+        int itemCount = 5;
+        if (mode_ == Mode::Paused || mode_ == Mode::GameOver) {
+            itemCount = 3;
+        } else if (mode_ == Mode::Settings) {
+            itemCount = 3;
+        } else if (mode_ == Mode::Complete) {
+            itemCount = 2;
+        } else if (mode_ == Mode::Help) {
+            itemCount = 7;
+        }
+        menuIndex_ = std::min(itemCount - 1, menuIndex_ + 1);
         return;
     }
 
@@ -563,5 +821,16 @@ void GameWidget::keyPressEvent(QKeyEvent *event)
         }
     }
 }
+void GameWidget::mousePressEvent(QMouseEvent *event)
+{
+    if (mode_ == Mode::Splash) {
+        finishSplash();
+        event->accept();
+        return;
+    }
+
+    QWidget::mousePressEvent(event);
+}
+
 void GameWidget::keyReleaseEvent(QKeyEvent*e){if(e->isAutoRepeat())return;int k=e->key();if(k==Qt::Key_Left||k==Qt::Key_A)left_=false;else if(k==Qt::Key_Right||k==Qt::Key_D)right_=false;else if(k==Qt::Key_Up||k==Qt::Key_W)up_=false;else if(k==Qt::Key_Down||k==Qt::Key_S)down_=false;else if(k==Qt::Key_Space)world_.stopJump();}
 void GameWidget::saveSettings(){}
