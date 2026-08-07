@@ -987,7 +987,7 @@ void World::update(double dt)
         completed_ = true;
         message_ = "Level complete!";
         if (!developerSession_) {
-            QSettings settings("OpenAI", "Izotopepa");
+            QSettings settings("CrazyLab", "Izotopepa");
             settings.setValue(
                 "unlockedLevel",
                 std::max(

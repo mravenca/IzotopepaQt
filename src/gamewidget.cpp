@@ -19,7 +19,7 @@ GameWidget::GameWidget(const DeveloperOptions &options, QWidget *parent)
     setFixedSize(W, H);
     setFocusPolicy(Qt::StrongFocus);
 
-    QSettings settings("OpenAI", "Izotopepa");
+    QSettings settings("CrazyLab", "Izotopepa");
     unlocked_ = std::clamp(
         settings.value("unlockedLevel", 0).toInt(),
         0,
@@ -794,7 +794,7 @@ void GameWidget::keyPressEvent(QKeyEvent *event)
         if (menuIndex_ == 0) {
             world_.toggleSound();
         } else if (menuIndex_ == 1) {
-            QSettings("OpenAI", "Izotopepa").clear();
+            QSettings("CrazyLab", "Izotopepa").clear();
             unlocked_ = 0;
         } else {
             mode_ = Mode::Menu;
